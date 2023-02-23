@@ -6,7 +6,7 @@ sed -Ei "s/^#(ParallelDownloads).*/\1 = 5/;/^#Color$/s/#//" /etc/pacman.conf
 
 # Display available block devices
 echo "Available block devices:"
-lsblk
+lsblk -o NAME,SIZE,MODEL
 
 # Prompt user for the block device to partition
 read -pr "Enter the disk for partitioning (e.g. sda/vda): " disk
@@ -16,34 +16,51 @@ disk_address="/dev/$disk"
 cfdisk "$disk_address"
 
 # Prompt user for the root partition number
+clear
+lsblk -o NAME,SIZE,TYPE "$disk_address"
 read -pr "Enter the root partition number: " num
 root_partition="${disk_address}${num}"
 
 # Format the root partition
 mkfs.ext4 "$root_partition"
 
+# Mount the root partition to /mnt
+mount "$root_partition" /mnt
+
 # Check if an EFI partition was created
 read -pr "Did you create an EFI partition? (y/n): " answer
 if [[ $answer = y ]] ; then
     # Prompt user for the EFI partition number
-    read -pr "Enter the EFI partition number: " num
+    clear
+    lsblk -o NAME,SIZE,TYPE "$disk_address"
+    read -pr "Enter the EFI partition number (e.g. 1): " num
     efi_partition="${disk_address}${num}"
+
     # Format the EFI partition
     mkfs.vfat -F 32 "$efi_partition"
+
+    # Create a mount point for the EFI partition
+    mkdir /mnt/boot/efi
+
+    # Mount the EFI partition to /mnt/boot/efi
+    mount "$efi_partition" /mnt/boot/efi
 fi
 
 # Check if a swap partition was created
 read -pr "Did you also create a swap partition? (y/n): " answer
 if [[ $answer = y ]] ; then
     # Prompt user for the swap partition number
-    read -pr "Enter the swap partition number: " num
+    clear
+    lsblk -o NAME,SIZE,TYPE "$disk_address"
+    read -pr "Enter the swap partition number (e.g. 1): " num
     swap_partition="${disk_address}${num}"
+
     # Format the swap partition
     mkswap "$swap_partition"
-fi
 
-# Mount the root partition to /mnt
-mount "$root_partition" /mnt
+    # Enable the swap partition
+    swapon "$swap_partition"
+fi
 
 # Detect CPU manufacturer and set appropriate microcode package
 CPU=$(grep vendor_id /proc/cpuinfo)
@@ -98,7 +115,6 @@ echo "permit persist keepenv $username" >> /etc/doas.conf
 echo "permit nopass $username cmd su" >> /etc/doas.conf
 
 # Configure GRUB
-mkdir /boot/efi
 mount "$efi_partition" /boot/efi
 grub-install --target=x86_64-efi --efi-directory=/boot/efi --bootloader-id=GRUB
 grub-mkconfig -o /boot/grub/grub.cfg
