@@ -9,7 +9,7 @@ echo "Available block devices:"
 lsblk -o NAME,SIZE,MODEL
 
 # Prompt user for the block device to partition
-read -pr "Enter the disk for partitioning (e.g. sda/vda): " disk
+read -p "Enter the disk for partitioning (e.g. sda/vda): " disk
 disk_address="/dev/$disk"
 
 # Partition the disk with cfdisk
@@ -18,7 +18,7 @@ cfdisk "$disk_address"
 # Prompt user for the root partition number
 clear
 lsblk -o NAME,SIZE,TYPE "$disk_address"
-read -pr "Enter the root partition number: " num
+read -p "Enter the root partition number: " num
 root_partition="${disk_address}${num}"
 
 # Format the root partition
@@ -28,12 +28,12 @@ mkfs.ext4 "$root_partition"
 mount "$root_partition" /mnt
 
 # Check if an EFI partition was created
-read -pr "Did you create an EFI partition? (y/n): " answer
+read -p "Did you create an EFI partition? (y/n): " answer
 if [[ $answer = y ]] ; then
     # Prompt user for the EFI partition number
     clear
     lsblk -o NAME,SIZE,TYPE "$disk_address"
-    read -pr "Enter the EFI partition number (e.g. 1): " num
+    read -p "Enter the EFI partition number (e.g. 1): " num
     efi_partition="${disk_address}${num}"
 
     # Format the EFI partition
@@ -47,12 +47,12 @@ if [[ $answer = y ]] ; then
 fi
 
 # Check if a swap partition was created
-read -pr "Did you also create a swap partition? (y/n): " answer
+read -p "Did you also create a swap partition? (y/n): " answer
 if [[ $answer = y ]] ; then
     # Prompt user for the swap partition number
     clear
     lsblk -o NAME,SIZE,TYPE "$disk_address"
-    read -pr "Enter the swap partition number (e.g. 1): " num
+    read -p "Enter the swap partition number (e.g. 1): " num
     swap_partition="${disk_address}${num}"
 
     # Format the swap partition
@@ -91,7 +91,7 @@ locale-gen
 echo "LANG=en_US.UTF-8" > /etc/locale.conf
 
 # Set hostname
-read -pr "Enter hostname: " hostname
+read -p "Enter hostname: " hostname
 echo "$hostname" > /etc/hostname
 
 # Configure /etc/hosts
@@ -105,7 +105,7 @@ echo "127.0.1.1		  $hostname.localdomain       $hostname"
 passwd
 
 # Set username and password
-read -pr "Enter $username: " username
+read -p "Enter $username: " username
 useradd -m -s /bin/zsh "$username"
 passwd "$username"
 
