@@ -40,7 +40,7 @@ if [[ $answer = y ]] ; then
     mkfs.vfat -F 32 "$efi_partition"
 
     # Create a mount point for the EFI partition
-    mkdir /mnt/boot/efi
+    mkdir -p /mnt/boot/efi
 
     # Mount the EFI partition to /mnt/boot/efi
     mount "$efi_partition" /mnt/boot/efi
