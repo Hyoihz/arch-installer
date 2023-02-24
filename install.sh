@@ -76,12 +76,7 @@ pacstrap /mnt base base-devel linux linux-headers linux-firmware "$microcode" gr
 # Generate an fstab file
 genfstab -U /mnt >> /mnt/etc/fstab
 
-# Prompt user for hostname and username
-read -p "Enter hostname: " hostname
-read -p "Enter username: " username
-
 # Define functions
-
 setup_timezone() {
     ln -sf /usr/share/zoneinfo/"$(curl -s http://ip-api.com/line?fields=timezone)" /etc/localtime
     hwclock --systohc
@@ -94,6 +89,7 @@ setup_locale() {
 }
 
 setup_hostname() {
+    read -p "Enter hostname: " hostname
     echo "$hostname" > /etc/hostname
 
     {
@@ -108,8 +104,9 @@ setup_root_password() {
 }
 
 setup_user() {
-    useradd -m -s /bin/zsh "$username"
-    passwd "$username"
+    read -p "Enter username: " username
+    useradd -m -s /bin/zsh $username
+    passwd "$username
 
     # Create and set doas config file
     touch /etc/doas.conf
@@ -122,16 +119,23 @@ setup_grub() {
     grub-mkconfig -o /boot/grub/grub.cfg
 }
 
-# Execute functions in chroot environment
+# Export functions
+export -f setup_timezone
+export -f setup_locale
+export -f setup_hostname
+export -f setup_root_password
+export -f setup_user
+export -f setup_grub
 
-arch-chroot /mnt bash <<-EOF
-    $(declare -f setup_timezone); setup_timezone || exit 1
-    $(declare -f setup_locale); setup_locale || exit 1
-    $(declare -f setup_hostname); setup_hostname || exit 1
-    $(declare -f setup_root_password); setup_root_password || exit 1
-    $(declare -f setup_user); setup_user || exit 1
-    $(declare -f setup_grub); setup_grub || exit 1
-EOF
+# Execute functions in chroot environment
+arch-chroot /mnt bash -c '
+    setup_timezone || exit 1
+    setup_locale || exit 1
+    setup_hostname || exit 1
+    setup_root_password || exit 1
+    setup_user || exit 1
+    setup_grub || exit 1
+'
 
 # Check if arch-chroot failed
 if [ $? -ne 0 ]; then
@@ -140,5 +144,5 @@ if [ $? -ne 0 ]; then
 fi
 
 # End
-/* clear */
+clear
 echo "Installation complete! Please reboot now!"
