@@ -76,49 +76,61 @@ pacstrap /mnt base base-devel linux linux-headers linux-firmware "$microcode" gr
 # Generate an fstab file
 genfstab -U /mnt >> /mnt/etc/fstab
 
-# Change root into the new system
-arch-chroot /mnt
+# Define functions
 
-# Set timezone
-ln -sf /usr/share/zoneinfo/"$(curl -s http://ip-api.com/line?fields=timezone)" /etc/localtime
+setup_timezone() {
+    ln -sf /usr/share/zoneinfo/"$(curl -s http://ip-api.com/line?fields=timezone)" /etc/localtime
+    hwclock --systohc
+}
 
-# Set the hardware clock from the system clock
-hwclock --systohc
+setup_locale() {
+    echo "en_US.UTF-8 UTF-8" >> /etc/locale.gen
+    locale-gen
+    echo "LANG=en_US.UTF-8" > /etc/locale.conf
+}
 
-# Set locale
-echo "en_US.UTF-8 UTF-8" >> /etc/locale.gen
-locale-gen
-echo "LANG=en_US.UTF-8" > /etc/locale.conf
+setup_hostname() {
+    read -p "Enter hostname: " hostname
+    echo "$hostname" > /etc/hostname
 
-# Set hostname
-read -p "Enter hostname: " hostname
-echo "$hostname" > /etc/hostname
+    {
+      echo "127.0.0.1       localhost"
+      echo "::1             localhost"
+      echo "127.0.1.1       $hostname.localdomain       $hostname"
+    } >> /etc/hosts
+}
 
-# Configure /etc/hosts
-{
-echo "127.0.0.1       localhost"
-echo "::1             localhost"
-echo "127.0.1.1		  $hostname.localdomain       $hostname"
-} >> /etc/hosts
+setup_root_password() {
+    passwd
+}
 
-# Set root password
-passwd
+setup_user() {
+    read -p "Enter username: " username
+    useradd -m -s /bin/zsh "$username"
+    passwd "$username"
 
-# Set username and password
-read -p "Enter $username: " username
-useradd -m -s /bin/zsh "$username"
-passwd "$username"
+    # Create and set doas config file
+    touch /etc/doas.conf
+    echo "permit persist keepenv $username" >> /etc/doas.conf
+    echo "permit nopass $username cmd su" >> /etc/doas.conf
+}
 
-# Create and set doas config file
-touch /etc/doas.conf
-echo "permit persist keepenv $username" >> /etc/doas.conf
-echo "permit nopass $username cmd su" >> /etc/doas.conf
+setup_grub() {
+    grub-install --target=x86_64-efi --efi-directory=/boot/efi --bootloader-id=GRUB
+    grub-mkconfig -o /boot/grub/grub.cfg
+}
 
-# Configure GRUB
-mount "$efi_partition" /boot/efi
-grub-install --target=x86_64-efi --efi-directory=/boot/efi --bootloader-id=GRUB
-grub-mkconfig -o /boot/grub/grub.cfg
+# Execute functions in chroot environment
+
+arch-chroot /mnt bash <<-EOF
+    $(declare -f setup_timezone); setup_timezone
+    $(declare -f setup_locale); setup_locale
+    $(declare -f setup_hostname); setup_hostname
+    $(declare -f setup_root_password); setup_root_password
+    $(declare -f setup_user); setup_user
+    $(declare -f setup_grub); setup_grub
+EOF
 
 # End
 clear
-echo "Installation Complete! Please reboot now!"
+echo "Installation complete! Please reboot now!"
