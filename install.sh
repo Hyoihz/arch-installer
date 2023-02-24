@@ -80,6 +80,7 @@ genfstab -U /mnt >> /mnt/etc/fstab
 
 setup_timezone() {
     ln -sf /usr/share/zoneinfo/"$(curl -s http://ip-api.com/line?fields=timezone)" /etc/localtime
+    timedatectl set-ntp true
     hwclock --systohc
 }
 
