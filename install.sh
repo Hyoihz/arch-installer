@@ -125,14 +125,20 @@ setup_grub() {
 # Execute functions in chroot environment
 
 arch-chroot /mnt bash <<-EOF
-    $(declare -f setup_timezone); setup_timezone
-    $(declare -f setup_locale); setup_locale
-    $(declare -f setup_hostname); setup_hostname
-    $(declare -f setup_root_password); setup_root_password
-    $(declare -f setup_user); setup_user
-    $(declare -f setup_grub); setup_grub
+    $(declare -f setup_timezone); setup_timezone || exit 1
+    $(declare -f setup_locale); setup_locale || exit 1
+    $(declare -f setup_hostname); setup_hostname || exit 1
+    $(declare -f setup_root_password); setup_root_password || exit 1
+    $(declare -f setup_user); setup_user || exit 1
+    $(declare -f setup_grub); setup_grub || exit 1
 EOF
 
+# Check if arch-chroot failed
+if [ $? -ne 0 ]; then
+    echo "Error: arch-chroot command failed."
+    exit 1
+fi
+
 # End
-clear
+/* clear */
 echo "Installation complete! Please reboot now!"
