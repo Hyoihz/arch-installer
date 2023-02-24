@@ -106,7 +106,7 @@ setup_root_password() {
 setup_user() {
     read -p "Enter username: " username
     useradd -m -s /bin/zsh $username
-    passwd "$username
+    passwd $username
 
     # Create and set doas config file
     touch /etc/doas.conf
