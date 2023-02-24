@@ -76,6 +76,10 @@ pacstrap /mnt base base-devel linux linux-headers linux-firmware "$microcode" gr
 # Generate an fstab file
 genfstab -U /mnt >> /mnt/etc/fstab
 
+# Prompt user for hostname and username
+read -p "Enter hostname: " hostname
+read -p "Enter username: " username
+
 # Define functions
 
 setup_timezone() {
@@ -90,7 +94,6 @@ setup_locale() {
 }
 
 setup_hostname() {
-    read -p "Enter hostname: " hostname
     echo "$hostname" > /etc/hostname
 
     {
@@ -105,7 +108,6 @@ setup_root_password() {
 }
 
 setup_user() {
-    read -p "Enter username: " username
     useradd -m -s /bin/zsh "$username"
     passwd "$username"
 
