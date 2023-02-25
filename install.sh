@@ -70,15 +70,6 @@ create_partition_table() {
 
                 case $confirm in
                     [Yy]* | '' )
-                        # Create partition table on the selected block
-			#if (is_uefi_boot); then
-                        #    parted -s "$PARTITION_BLOCK" mklabel gpt
-                        #else
-                        #    parted -s "$PARTITION_BLOCK" mklabel msdos
-                        #fi
-
-                        ## Prompt user that partition table has been created
-                        #display_info "Partition table $(is_uefi_boot && echo 'gpt' || echo 'msdos') created on $PARTITION_BLOCK."
                         valid_input=true
                         break
                         ;;
@@ -102,7 +93,7 @@ create_partition_table() {
 
 set_disk_vars() {
 if $(is_uefi_boot); then
-    DISK_LABEL='GPT'
+    # GPT
     EFI_MTPT='/mnt/boot/efi'
     if [[ $IN_DEVICE =~ nvme ]]; then
         EFI_PARTITION="${PARTITION_BLOCK}p1" 
@@ -112,7 +103,7 @@ if $(is_uefi_boot); then
         EFI_PARTITION="${PARTITION_BLOCK}1" 
     fi
 else
-    DISK_LABEL='MBR'
+    # MBR
     BOOT_MTPT='/mnt/boot'
     BOOT_PARTITION="${PARTITION_BLOCK}1"
 fi
