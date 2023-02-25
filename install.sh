@@ -50,6 +50,7 @@ input_print "Press any key to continue..."
 read _
 
 clear
+
 # Loop until a valid partition block is entered
 while true; do
     # Show available block devices
@@ -64,11 +65,12 @@ while true; do
     # Check if the entered partition block exists
     if [ -b "/dev/$partition_block" ]; then
         # Prompt user for confirmation
-        input_print "Partition table will be created on /dev/$partition_block. Proceed? (y/n): "
+        input_print "Partition table will be created on /dev/$partition_block. Proceed? (Y/n): "
         read -r confirm
         case $confirm in
             [Yy]* ) break;;
             [Nn]* ) clear;;
+	    '' ) break;;
             * ) error_print "Please enter Y or N.";;
         esac
     else
@@ -87,4 +89,3 @@ fi
 
 # Prompt user that partition table has been created
 info_print "Partition table $(is_uefi_boot && echo 'gpt' || echo 'msdos') created on /dev/$partition_block."
-
