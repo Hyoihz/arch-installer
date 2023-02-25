@@ -71,14 +71,14 @@ create_partition_table() {
                 case $confirm in
                     [Yy]* | '' )
                         # Create partition table on the selected block
-			if (is_uefi_boot); then
-                            parted -s "$PARTITION_BLOCK" mklabel gpt
-                        else
-                            parted -s "$PARTITION_BLOCK" mklabel msdos
-                        fi
+			#if (is_uefi_boot); then
+                        #    parted -s "$PARTITION_BLOCK" mklabel gpt
+                        #else
+                        #    parted -s "$PARTITION_BLOCK" mklabel msdos
+                        #fi
 
-                        # Prompt user that partition table has been created
-                        display_info "Partition table $(is_uefi_boot && echo 'gpt' || echo 'msdos') created on $PARTITION_BLOCK."
+                        ## Prompt user that partition table has been created
+                        #display_info "Partition table $(is_uefi_boot && echo 'gpt' || echo 'msdos') created on $PARTITION_BLOCK."
                         valid_input=true
                         break
                         ;;
@@ -122,51 +122,42 @@ SWAP_PARTITION="${PARTITION_BLOCK}3"
 }
 
 set_partition_sizes() {
+    available_space=$(lsblk -nb -o SIZE -d "$PARTITION_BLOCK" | tail -1)
+
+    if $(is_uefi_boot); then
+        prompt="Enter EFI partition size (e.g. 512M): "
+    else
+        prompt="Enter BOOT partition size (e.g. 512M): "
+    fi
+
     while true; do
-        available_space=$(lsblk -nb -o SIZE -d "$PARTITION_BLOCK" | tail -1)
-	echo "Available space: $(numfmt --to=iec --format='%.1f' "$available_space")"
-	if $(is_uefi_boot); then
-            read -p "Enter EFI partition size (e.g. 512M): " efi_size
-            if [[ $efi_size =~ ^[0-9]+[KMGT]$ ]]; then
-	        efi_size_bytes=$(numfmt --from=iec "$efi_size")
-                if [[ "$efi_size_bytes" -le 0 ]]; then
-                    echo "Invalid size. Please specify a positive size."
-                elif [[ "$efi_size_bytes" -gt "$available_space" ]]; then
-                    echo "Not enough available space. Please specify a size smaller than $(numfmt --to=iec "$available_space")."
-                else
-                    available_space=$((available_space - efi_size_bytes))
-                    break
-                fi
+    echo "Available space: $(numfmt --to=iec --format='%.1f' "$available_space")"
+    read -rp "$prompt" size
+        if [[ "$size" =~ ^[0-9]+[KMGT]$ ]]; then
+            size_bytes=$(numfmt --from=iec "$size")
+            if [[ "$size_bytes" -le 0 ]]; then
+                echo "Invalid size. Please specify a positive size."
+            elif [[ "$size_bytes" -gt "$available_space" ]]; then
+                echo "Not enough available space. Please specify a size smaller than $(numfmt --to=iec --format='%.1f' "$available_space")."
             else
-                echo "Invalid size. Please specify a size in the format [0-9]+[KMG] (e.g. 512M)."
+                available_space=$((available_space - size_bytes))
+                break
             fi
         else
-            read -rp "Enter BOOT partition size (e.g. 512M): " boot_size
-            if [[ "$boot_size" =~ ^[0-9]+[KMGT]$ ]]; then
-	        boot_size_bytes=$(numfmt --from=iec "$boot_size")
-                if [[ "$boot_size_bytes" -le 0 ]]; then
-                    echo "Invalid size. Please specify a positive size."
-                elif [[ "$boot_size_bytes" -gt "$available_space" ]]; then
-                    echo "Not enough available space. Please specify a size smaller than $(numfmt --to=iec "$available_space")."
-                else
-                    available_space=$((available_space - boot_size_bytes))
-                    break
-                fi
-            else
-                echo "Invalid size. Please specify a size in the format [0-9]+[KMG] (e.g. 512M)."
-            fi
+            echo "Invalid size. Please specify a size in the format [0-9]+[KMG] (e.g. 512M)."
         fi
     done
 
+    prompt="Enter swap partition size (e.g. 4G): "
     while true; do
-	echo "Available space: $(numfmt --to=iec --format='%.1f' "$available_space")"
-        read -rp "Enter swap partition size (e.g. 4G): " swap_size
+    echo "Available space: $(numfmt --to=iec --format='%.1f' "$available_space")"
+    read -rp "$prompt" swap_size
         if [[ "$swap_size" =~ ^[0-9]+[KMGT]$ ]]; then
-	    swap_size_bytes=$(numfmt --from=iec "$swap_size")
+            swap_size_bytes=$(numfmt --from=iec "$swap_size")
             if [[ "$swap_size_bytes" -le 0 ]]; then
                 echo "Invalid size. Please specify a positive size."
             elif [[ "$swap_size_bytes" -gt "$available_space" ]]; then
-                echo "Not enough available space. Please specify a size smaller than $(numfmt --to=iec "$available_space")."
+                echo "Not enough available space. Please specify a size smaller than $(numfmt --to=iec --format='%.1f' "$available_space")."
             else
                 available_space=$((available_space - swap_size_bytes))
                 break
@@ -176,11 +167,25 @@ set_partition_sizes() {
         fi
     done
 
-    echo "EFI partition size: $efi_size"
-    echo "Swap partition size: $swap_size"
-    echo "Root partition size: $(numfmt --to=iec "$available_space")"
+    if $(is_uefi_boot); then
+        echo "EFI partition size: $size"
+    else
+        echo "BOOT partition size: $size"
+    fi
 
+    echo "SWAP partition size: $swap_size"
+    echo "ROOT partition size: $(numfmt --to=iec "$available_space")"
+
+    read -rp "Are you satisfied with these partition sizes? (Y/n) " choice
+    while [[ "$choice" != "y" && "$choice" != "n"  && "$choice" != "" ]]; do
+        read -rp "Invalid input. Please enter 'y' or 'n': " choice
+    done
+
+    if [[ "$choice" == "n" ]]; then
+        set_partition_sizes
+    fi
 }
+
 
 format_partition(){
     device=$1; fstype=$2
@@ -197,7 +202,7 @@ create_partitions(){
     clear
     if $(is_uefi_boot); then
         sgdisk -Z "$PARTITION_BLOCK"
-        sgdisk -n 1::+"$efi_size" -t 1:ef00 -c 1:EFI "$PARTITION_BLOCK"
+        sgdisk -n 1::+"$size" -t 1:ef00 -c 1:EFI "$PARTITION_BLOCK"
         sgdisk -n 2::+"$swap_size" -t 2:8200 -c 2:SWAP "$PARTITION_BLOCK"
         sgdisk -n 3 -t 3:8300 -c 3:ROOT "$PARTITION_BLOCK"
 
@@ -211,7 +216,7 @@ create_partitions(){
     else
         # For non-EFI. Eg. for MBR systems
 cat > /tmp/sfdisk.cmd << EOF
-$BOOT_PARTITION : start= 2048, size=+$boot_size, type=83, bootable
+$BOOT_PARTITION : start= 2048, size=+$size, type=83, bootable
 $SWAP_PARTITION : size=+$swap_size, type=82
 $ROOT_PARTITION : type=83
 EOF
