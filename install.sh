@@ -4,7 +4,7 @@
 #sed -i "/#VerbosePkgLists/a ILoveCandy" /etc/pacman.conf
 #sed -Ei "s/^#(ParallelDownloads).*/\1 = 5/;/^#Color$/s/#//" /etc/pacman.conf
 
-# Cosmetics (colors for text).
+# Ansi codes
 BOLD='\e[1m'
 RED='\e[31m'
 GREEN='\e[32m'
@@ -15,19 +15,16 @@ RESET='\e[0m'
 
 partition_block=""
 
-# Pretty print (function).
-info_print () {
+display_info () {
     echo -e "${BOLD}${BLUE}[ ${MAGENTA}•${BLUE} ] $1${RESET}"
 }
 
-# Pretty print for input (function).
-input_print () {
-    echo -ne "${YELLOW}[ ${BOLD}${MAGENTA}•${YELLOW}${RESET}${YELLOW} ] $1${RESET}"
+display_error () {
+    echo -e "${BOLD}${RED}[ ${MAGENTA}•${RED} ] $1${RESET}"
 }
 
-# Alert user of bad input (function).
-error_print () {
-    echo -e "${BOLD}${RED}[ ${MAGENTA}•${RED} ] $1${RESET}"
+prompt_input () {
+    echo -ne "${YELLOW}[ ${BOLD}${MAGENTA}•${YELLOW}${RESET}${YELLOW} ] $1${RESET}"
 }
 
 is_uefi_boot() {
@@ -37,10 +34,16 @@ is_uefi_boot() {
 
 output_firmware_system() {
     if is_uefi_boot; then
-        echo && info_print "The system is using UEFI boot."
+        echo && display_info "The system is using UEFI boot."
     else
-        info_print "The system is using BIOS legacy boot."
+        echo && display_info "The system is using BIOS legacy boot."
     fi
+}
+
+pause_script() {
+    prompt_input "Press any key to continue..."
+    read _
+    clear
 }
 
 create_partition_table() {
@@ -49,19 +52,19 @@ create_partition_table() {
 
     while ! $valid_input; do
         # Show available block devices
-        info_print "Select the block to create partition table on."
-        info_print "Available block devices:"
+        display_info "Select the block to create partition table on."
+        display_info "Available block devices:"
         lsblk -o NAME,SIZE,MODEL
 
         # Prompt user for partition block
-        input_print "Enter the partition block (e.g. sda, vda): "
+        prompt_input "Enter the partition block (e.g. sda, vda): "
         read -r partition_block
 
         # Check if the entered partition block exists
         if [ -b "/dev/$partition_block" ]; then
             # Prompt user for confirmation
             while true; do
-                input_print "Partition table will be created on /dev/$partition_block. Proceed? (Y/n): "
+                prompt_input "Partition table will be created on /dev/$partition_block. Proceed? (Y/n): "
                 read -r confirm
 
                 case $confirm in
@@ -74,7 +77,7 @@ create_partition_table() {
                         fi
 
                         # Prompt user that partition table has been created
-                        info_print "Partition table $(is_uefi_boot && echo 'gpt' || echo 'msdos') created on /dev/$partition_block."
+                        display_info "Partition table $(is_uefi_boot && echo 'gpt' || echo 'msdos') created on /dev/$partition_block."
                         valid_input=true
                         break
                         ;;
@@ -84,29 +87,23 @@ create_partition_table() {
                         ;;
                     * )
                         clear
-                        error_print "Invalid input. Please enter y or n."
+                        display_error "Invalid input. Please enter y or n."
                         ;;
                 esac
             done
         else
             # Partition block does not exist
             clear
-            error_print "Partition block /dev/$partition_block does not exist." && echo
+            display_error "Partition block /dev/$partition_block does not exist." && echo
         fi
     done
 }
 
-info_print "Checking firmware system..."
+display_info "Checking firmware system..."
 sleep 1
 
 output_firmware_system
-
-input_print "Press any key to continue..."
-read _
-clear
+pause_script
 
 create_partition_table
-
-input_print "Press any key to continue..."
-read _
-clear
+pause_script
