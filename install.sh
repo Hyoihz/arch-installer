@@ -13,8 +13,6 @@ BLUE='\e[34m'
 MAGENTA='\e[35m'
 RESET='\e[0m'
 
-PARTITION_BLOCK=""
-
 display_info () {
     echo -e "${BOLD}${BLUE}[ ${MAGENTA}•${BLUE} ] $1${RESET}"
 }
@@ -46,7 +44,7 @@ pause_script() {
     clear
 }
 
-create_partition_table() {
+get_partition_block() {
     # Loop until a valid partition block is entered
     valid_input=false
 
@@ -59,13 +57,13 @@ create_partition_table() {
         # Prompt user for partition block
         prompt_input "Enter the partition block (e.g. sda, vda): "
         read -r partition_block
-	PARTITION_BLOCK="/dev/$partition_block"
+	partition_block_path="/dev/$partition_block"
 
         # Check if the entered partition block exists
-        if [ -b "$PARTITION_BLOCK" ]; then
+        if [ -b "$partition_block_path" ]; then
             # Prompt user for confirmation
             while true; do
-                prompt_input "Partition table will be created on $PARTITION_BLOCK. Proceed? (Y/n): "
+                prompt_input "Partition table will be created on $partition_block_path. Proceed? (Y/n): "
                 read -r confirm
 
                 case $confirm in
@@ -86,34 +84,34 @@ create_partition_table() {
         else
             # Partition block does not exist
             clear
-            display_error "Partition block $PARTITION_BLOCK does not exist." && echo
+            display_error "Partition block $partition_block_path does not exist." && echo
         fi
     done
 }
 
-set_disk_vars() {
+set_partition_vars() {
 if $(is_uefi_boot); then
     # GPT
     EFI_MTPT='/mnt/boot/efi'
     if [[ $IN_DEVICE =~ nvme ]]; then
-        EFI_PARTITION="${PARTITION_BLOCK}p1" 
-	ROOT_PARTITION="${PARTITION_BLOCK}p2"
-        SWAP_PARTITION="${PARTITION_BLOCK}p3"
+        EFI_PARTITION="${partition_block_path}p1" 
+	ROOT_PARTITION="${partition_block_path}p2"
+        SWAP_PARTITION="${partition_block_path}p3"
     else
-        EFI_PARTITION="${PARTITION_BLOCK}1" 
+        EFI_PARTITION="${partition_block_path}1" 
     fi
 else
     # MBR
     BOOT_MTPT='/mnt/boot'
-    BOOT_PARTITION="${PARTITION_BLOCK}1"
+    BOOT_PARTITION="${partition_block_path}1"
 fi
 
-ROOT_PARTITION="${PARTITION_BLOCK}2"
-SWAP_PARTITION="${PARTITION_BLOCK}3"
+ROOT_PARTITION="${partition_block_path}2"
+SWAP_PARTITION="${partition_block_path}3"
 }
 
 set_partition_sizes() {
-    available_space=$(lsblk -nb -o SIZE -d "$PARTITION_BLOCK" | tail -1)
+    available_space=$(lsblk -nb -o SIZE -d "$partition_block_path" | tail -1)
 
     if $(is_uefi_boot); then
         prompt="Enter EFI partition size (e.g. 512M): "
@@ -192,10 +190,10 @@ create_partitions(){
     # We're just doing partitions, no LVM here
     clear
     if $(is_uefi_boot); then
-        sgdisk -Z "$PARTITION_BLOCK"
-        sgdisk -n 1::+"$size" -t 1:ef00 -c 1:EFI "$PARTITION_BLOCK"
-        sgdisk -n 2::+"$swap_size" -t 2:8200 -c 2:SWAP "$PARTITION_BLOCK"
-        sgdisk -n 3 -t 3:8300 -c 3:ROOT "$PARTITION_BLOCK"
+        sgdisk -Z "$partition_block_path"
+        sgdisk -n 1::+"$size" -t 1:ef00 -c 1:EFI "$partition_block_path"
+        sgdisk -n 2::+"$swap_size" -t 2:8200 -c 2:SWAP "$partition_block_path"
+        sgdisk -n 3 -t 3:8300 -c 3:ROOT "$partition_block_path"
 
         # Format and mount slices for EFI
         format_partition "$ROOT_PARTITION" "vfat"
@@ -213,7 +211,7 @@ $ROOT_PARTITION : type=83
 EOF
 
         # Using sfdisk because we're talking MBR disktable now...
-        sfdisk "$PARTITION_BLOCK" < /tmp/sfdisk.cmd
+        sfdisk "$partition_block_path" < /tmp/sfdisk.cmd
 
         # Format and mount slices for non-EFI
         format_partition "$ROOT_PARTITION" "ext4"
@@ -224,7 +222,7 @@ EOF
         mkswap "$SWAP_PARTITION" && swapon "$SWAP_PARTITION"
     fi
 
-    lsblk "$PARTITION_BLOCK"
+    lsblk "$partition_block_path"
     echo "Type any key to continue..."; read empty
 }
 
@@ -235,9 +233,9 @@ sleep 1
 output_firmware_system
 pause_script
 
-create_partition_table
+get_partition_block
 pause_script
 
-set_disk_vars
+set_partition_vars
 set_partition_sizes
 create_partitions
