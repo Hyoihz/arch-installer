@@ -52,7 +52,9 @@ read _
 clear
 
 # Loop until a valid partition block is entered
-while true; do
+partition_block=""
+valid_input=false
+while ! $valid_input; do
     # Show available block devices
     info_print "Select the block to create partition table on."
     info_print "Available block devices:"
@@ -65,23 +67,33 @@ while true; do
     # Check if the entered partition block exists
     if [ -b "/dev/$partition_block" ]; then
         # Prompt user for confirmation
-        input_print "Partition table will be created on /dev/$partition_block. Proceed? (Y/n): "
-        read -r confirm
-        case $confirm in
-            [Yy]* | '' ) 
-	        # Create partition table on the selected block
-		if is_uefi_boot; then
-		    parted -s /dev/"$partition_block" mklabel gpt
-		else
-		    parted -s /dev/"$partition_block" mklabel msdos
-		fi
-		# Prompt user that partition table has been created
-		info_print "Partition table $(is_uefi_boot && echo 'gpt' || echo 'msdos') created on /dev/$partition_block."
-		break;;
-            [Nn]* ) clear;;
-	    '' ) break;;
-            * ) error_print "Please enter Y or n.";;
-        esac
+	while true; do
+	    input_print "Partition table will be created on /dev/$partition_block. Proceed? (Y/n): "
+            read -r confirm
+
+            case $confirm in
+	        [Yy]* | '' )
+                # Create partition table on the selected block
+                if is_uefi_boot; then
+                    parted -s /dev/"$partition_block" mklabel gpt
+                else
+                    parted -s /dev/"$partition_block" mklabel msdos
+                fi
+                # Prompt user that partition table has been created
+                info_print "Partition table $(is_uefi_boot && echo 'gpt' || echo 'msdos') created on /dev/$partition_block."
+		valid_input=true
+                break
+                ;;
+                [Nn]* )
+		    clear
+		    break
+                    ;;
+                * )
+	            clear
+                    error_print "Invalid input. Please enter y or n."
+                    ;;
+            esac
+        done
     else
         # Partition block does not exist
         clear
@@ -91,3 +103,5 @@ done
 
 input_print "Press any key to continue..."
 read _
+
+clear
