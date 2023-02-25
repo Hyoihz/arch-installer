@@ -71,7 +71,7 @@ create_partition_table() {
                 case $confirm in
                     [Yy]* | '' )
                         # Create partition table on the selected block
-                        if is_uefi_boot; then
+			if (is_uefi_boot); then
                             parted -s "$PARTITION_BLOCK" mklabel gpt
                         else
                             parted -s "$PARTITION_BLOCK" mklabel msdos
@@ -108,6 +108,8 @@ if $(is_uefi_boot); then
         EFI_PARTITION="${PARTITION_BLOCK}p1" 
 	ROOT_PARTITION="${PARTITION_BLOCK}p2"
         SWAP_PARTITION="${PARTITION_BLOCK}p3"
+    else
+        EFI_PARTITION="${PARTITION_BLOCK}1" 
     fi
 else
     DISK_LABEL='MBR'
@@ -123,7 +125,7 @@ set_partition_sizes() {
     while true; do
         available_space=$(lsblk -nb -o SIZE -d "$PARTITION_BLOCK" | tail -1)
 	echo "Available space: $(numfmt --to=iec --format='%.1f' "$available_space")"
-        if $is_uefi_boot; then
+	if $(is_uefi_boot); then
             read -p "Enter EFI partition size (e.g. 512M): " efi_size
             if [[ $efi_size =~ ^[0-9]+[KMGT]$ ]]; then
 	        efi_size_bytes=$(numfmt --from=iec "$efi_size")
