@@ -68,10 +68,19 @@ while true; do
         input_print "Partition table will be created on /dev/$partition_block. Proceed? (Y/n): "
         read -r confirm
         case $confirm in
-            [Yy]* ) break;;
+            [Yy]* | '' ) 
+	        # Create partition table on the selected block
+		if is_uefi_boot; then
+		    parted -s /dev/"$partition_block" mklabel gpt
+		else
+		    parted -s /dev/"$partition_block" mklabel msdos
+		fi
+		# Prompt user that partition table has been created
+		info_print "Partition table $(is_uefi_boot && echo 'gpt' || echo 'msdos') created on /dev/$partition_block."
+		break;;
             [Nn]* ) clear;;
 	    '' ) break;;
-            * ) error_print "Please enter Y or N.";;
+            * ) error_print "Please enter Y or n.";;
         esac
     else
         # Partition block does not exist
@@ -80,12 +89,5 @@ while true; do
     fi
 done
 
-# Create partition table on the selected block
-if is_uefi_boot; then
-    parted -s /dev/"$partition_block" mklabel gpt
-else
-    parted -s /dev/"$partition_block" mklabel msdos
-fi
-
-# Prompt user that partition table has been created
-info_print "Partition table $(is_uefi_boot && echo 'gpt' || echo 'msdos') created on /dev/$partition_block."
+input_print "Press any key to continue..."
+read _
