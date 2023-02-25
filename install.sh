@@ -180,6 +180,57 @@ set_partition_sizes() {
 
 }
 
+format_partition(){
+    device=$1; fstype=$2
+    mkfs."$fstype" "$device" || error "format_partition(): Can't format device $device with $fstype"
+}
+
+mount_partition(){
+    device=$1; mt_pt=$2
+    mount "$device" "$mt_pt" || error "mount_partition(): Can't mount $device to $mt_pt"
+}
+
+create_partitions(){
+    # We're just doing partitions, no LVM here
+    clear
+    if $(is_uefi_boot); then
+        sgdisk -Z "$PARTITION_BLOCK"
+        sgdisk -n 1::+"$efi_size" -t 1:ef00 -c 1:EFI "$PARTITION_BLOCK"
+        sgdisk -n 2::+"$swap_size" -t 2:8200 -c 2:SWAP "$PARTITION_BLOCK"
+        sgdisk -n 3 -t 3:8300 -c 3:ROOT "$PARTITION_BLOCK"
+
+        # Format and mount slices for EFI
+        format_partition "$ROOT_PARTITION" "vfat"
+        mount_partition "$ROOT_PARTITION" /mnt
+        mkfs.fat -F32 "$EFI_PARTITION"
+        mkdir -p /mnt/boot/efi
+        mount_partition "$EFI_PARTITION" "$EFI_MTPT"
+        mkswap "$SWAP_PARTITION" && swapon "$SWAP_PARTITION"
+    else
+        # For non-EFI. Eg. for MBR systems
+cat > /tmp/sfdisk.cmd << EOF
+$BOOT_PARTITION : start= 2048, size=+$boot_size, type=83, bootable
+$SWAP_PARTITION : size=+$swap_size, type=82
+$ROOT_PARTITION : type=83
+EOF
+
+        # Using sfdisk because we're talking MBR disktable now...
+        sfdisk "$PARTITION_BLOCK" < /tmp/sfdisk.cmd
+
+        # Format and mount slices for non-EFI
+        format_partition "$ROOT_PARTITION" "ext4"
+        mount_partition "$ROOT_PARTITION" /mnt
+        format_partition "$BOOT_PARTITION" "ext4"
+        mkdir /mnt/boot
+        mount_partition "$BOOT_PARTITION" "$BOOT_MTPT"
+        mkswap "$SWAP_PARTITION" && swapon "$SWAP_PARTITION"
+    fi
+
+    lsblk "$PARTITION_BLOCK"
+    echo "Type any key to continue..."; read empty
+}
+
+
 display_info "Checking firmware system..."
 sleep 1
 
@@ -191,3 +242,4 @@ pause_script
 
 set_disk_vars
 set_partition_sizes
+create_partitions
