@@ -50,21 +50,41 @@ input_print "Press any key to continue..."
 read _
 
 clear
+# Loop until a valid partition block is entered
+while true; do
+    # Show available block devices
+    info_print "Select the block to create partition table on."
+    info_print "Available block devices:"
+    lsblk -o NAME,SIZE,MODEL
 
-info_print "Select the block to create partition table on." && echo
-info_print "Available block devices:"
-lsblk -o NAME,SIZE,MODEL
+    # Prompt user for partition block
+    input_print "Enter the partition block (e.g. sda, vda): "
+    read -r partition_block
 
-input_print "Enter the partition block (e.g. sda, vda): "
-read -r partition_block
+    # Check if the entered partition block exists
+    if [ -b "/dev/$partition_block" ]; then
+        # Prompt user for confirmation
+        input_print "Partition table will be created on /dev/$partition_block. Proceed? (y/n): "
+        read -r confirm
+        case $confirm in
+            [Yy]* ) break;;
+            [Nn]* ) clear;;
+            * ) error_print "Please enter Y or N.";;
+        esac
+    else
+        # Partition block does not exist
+        clear
+        error_print "Partition block /dev/$partition_block does not exist." && echo
+    fi
+done
 
-info_print "Creating partition table..."
+# Create partition table on the selected block
 if is_uefi_boot; then
     parted -s /dev/"$partition_block" mklabel gpt
-    info_print "Partition table gpt created."
 else
     parted -s /dev/"$partition_block" mklabel msdos
-    info_print "Partition table msdos created."
 fi
 
+# Prompt user that partition table has been created
+info_print "Partition table $(is_uefi_boot && echo 'gpt' || echo 'msdos') created on /dev/$partition_block."
 
