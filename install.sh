@@ -1,148 +1,70 @@
 #!/bin/bash
 
 #  Make pacman colorful and set number of concurrent downloads
-sed -i "/#VerbosePkgLists/a ILoveCandy" /etc/pacman.conf
-sed -Ei "s/^#(ParallelDownloads).*/\1 = 5/;/^#Color$/s/#//" /etc/pacman.conf
+#sed -i "/#VerbosePkgLists/a ILoveCandy" /etc/pacman.conf
+#sed -Ei "s/^#(ParallelDownloads).*/\1 = 5/;/^#Color$/s/#//" /etc/pacman.conf
 
-# Display available block devices
-echo "Available block devices:"
+# Cosmetics (colors for text).
+BOLD='\e[1m'
+RED='\e[31m'
+GREEN='\e[32m'
+YELLOW='\e[33m'
+BLUE='\e[34m'
+MAGENTA='\e[35m'
+RESET='\e[0m'
+
+# Pretty print (function).
+info_print () {
+    echo -e "${BOLD}${BLUE}[ ${MAGENTA}•${BLUE} ] $1${RESET}"
+}
+
+# Pretty print for input (function).
+input_print () {
+    echo -ne "${YELLOW}[ ${BOLD}${MAGENTA}•${YELLOW}${RESET}${YELLOW} ] $1${RESET}"
+}
+
+# Alert user of bad input (function).
+error_print () {
+    echo -e "${BOLD}${RED}[ ${MAGENTA}•${RED} ] $1${RESET}"
+}
+
+is_uefi_boot() {
+    [[ -d /sys/firmware/efi/ ]] && return 0
+    return 1
+}
+
+output_firmware_system() {
+    if is_uefi_boot; then
+        echo && info_print "The system is using UEFI boot."
+    else
+        info_print "The system is using BIOS legacy boot."
+    fi
+}
+
+info_print "Checking firmware system..."
+sleep 1
+
+output_firmware_system
+
+input_print "Press any key to continue..."
+read _
+
+clear
+
+info_print "Select the block to create partition table on." && echo
+info_print "Available block devices:"
 lsblk -o NAME,SIZE,MODEL
 
-# Prompt user for the block device to partition
-read -p "Enter the disk for partitioning (e.g. sda/vda): " disk
-disk_address="/dev/$disk"
+input_print "Enter the partition block (e.g. sda, vda): "
+read -r partition_block
 
-# Partition the disk with cfdisk
-cfdisk "$disk_address"
-
-# Prompt user for the root partition number
-clear
-lsblk -o NAME,SIZE,TYPE "$disk_address"
-read -p "Enter the root partition number: " num
-root_partition="${disk_address}${num}"
-
-# Format the root partition
-mkfs.ext4 "$root_partition"
-
-# Mount the root partition to /mnt
-mount "$root_partition" /mnt
-
-# Check if an EFI partition was created
-read -p "Did you create an EFI partition? (y/n): " answer
-if [[ $answer = y ]] ; then
-    # Prompt user for the EFI partition number
-    clear
-    lsblk -o NAME,SIZE,TYPE "$disk_address"
-    read -p "Enter the EFI partition number (e.g. 1): " num
-    efi_partition="${disk_address}${num}"
-
-    # Format the EFI partition
-    mkfs.vfat -F 32 "$efi_partition"
-
-    # Create a mount point for the EFI partition
-    mkdir -p /mnt/boot/efi
-
-    # Mount the EFI partition to /mnt/boot/efi
-    mount "$efi_partition" /mnt/boot/efi
+info_print "Creating partition table..."
+if is_uefi_boot; then
+    parted -s /dev/"$partition_block" mklabel gpt
+    info_print "Partition table gpt created."
+else
+    parted -s /dev/"$partition_block" mklabel msdos
+    info_print "Partition table msdos created."
 fi
 
-# Check if a swap partition was created
-read -p "Did you also create a swap partition? (y/n): " answer
-if [[ $answer = y ]] ; then
-    # Prompt user for the swap partition number
-    clear
-    lsblk -o NAME,SIZE,TYPE "$disk_address"
-    read -p "Enter the swap partition number (e.g. 1): " num
-    swap_partition="${disk_address}${num}"
 
-    # Format the swap partition
-    mkswap "$swap_partition"
-
-    # Enable the swap partition
-    swapon "$swap_partition"
-fi
-
-# Detect CPU manufacturer and set appropriate microcode package
-CPU=$(grep vendor_id /proc/cpuinfo)
-microcode="$([[ $CPU == *"AuthenticAMD"* ]] && echo "amd-ucode" || echo "intel-ucode")"
-
-# Install "essential" packages
-pacstrap /mnt base base-devel linux linux-headers linux-firmware "$microcode" grub efibootmgr os-prober archlinux-keyring zsh opendoas
-
-# Will include later to above pacstrap install
-# firefox neovim feh ttf-jetbrains-mono-nerd noto-fonts-emoji noto-fonts-cjk mpv obs-studio htop
-# neofetch unzip xlcip man-db unclutter networkmanager dhcpcd fd ripgrep flameshot xorg-server xorg-xinit 
-
-# Generate an fstab file
-genfstab -U /mnt >> /mnt/etc/fstab
-
-# Define functions
-setup_timezone() {
-    ln -sf /usr/share/zoneinfo/"$(curl -s http://ip-api.com/line?fields=timezone)" /etc/localtime
-    hwclock --systohc
-}
-
-setup_locale() {
-    echo "en_US.UTF-8 UTF-8" >> /etc/locale.gen
-    locale-gen
-    echo "LANG=en_US.UTF-8" > /etc/locale.conf
-}
-
-setup_hostname() {
-    read -p "Enter hostname: " hostname
-    echo "$hostname" > /etc/hostname
-
-    {
-      echo "127.0.0.1       localhost"
-      echo "::1             localhost"
-      echo "127.0.1.1       $hostname.localdomain       $hostname"
-    } >> /etc/hosts
-}
-
-setup_root_password() {
-    passwd
-}
-
-setup_user() {
-    read -p "Enter username: " username
-    useradd -m -s /bin/zsh $username
-    passwd $username
-
-    # Create and set doas config file
-    touch /etc/doas.conf
-    echo "permit persist keepenv $username" >> /etc/doas.conf
-    echo "permit nopass $username cmd su" >> /etc/doas.conf
-}
-
-setup_grub() {
-    grub-install --target=x86_64-efi --efi-directory=/boot/efi --bootloader-id=GRUB
-    grub-mkconfig -o /boot/grub/grub.cfg
-}
-
-# Export functions
-export -f setup_timezone
-export -f setup_locale
-export -f setup_hostname
-export -f setup_root_password
-export -f setup_user
-export -f setup_grub
-
-# Execute functions in chroot environment
-arch-chroot /mnt bash -c '
-    setup_timezone || exit 1
-    setup_locale || exit 1
-    setup_hostname || exit 1
-    setup_root_password || exit 1
-    setup_user || exit 1
-    setup_grub || exit 1
-'
-
-# Check if arch-chroot failed
-if [ $? -ne 0 ]; then
-    echo "Error: arch-chroot command failed."
-    exit 1
-fi
-
-# End
-clear
-echo "Installation complete! Please reboot now!"
