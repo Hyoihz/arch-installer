@@ -13,15 +13,15 @@ BLUE='\e[34m'
 MAGENTA='\e[35m'
 RESET='\e[0m'
 
-display_info () {
+display_info() {
     echo -e "${BOLD}${BLUE}[ ${MAGENTA}•${BLUE} ] $1${RESET}"
 }
 
-display_error () {
+display_error() {
     echo -e "${BOLD}${RED}[ ${MAGENTA}•${RED} ] $1${RESET}"
 }
 
-prompt_input () {
+prompt_input() {
     echo -ne "${YELLOW}[ ${BOLD}${MAGENTA}•${YELLOW}${RESET}${YELLOW} ] $1${RESET}"
 }
 
@@ -56,7 +56,7 @@ get_partition_block() {
         # Prompt user for partition block
         prompt_input "Enter the partition block (e.g. sda, vda): "
         read -r partition_block
-	partition_block_path="/dev/$partition_block"
+        partition_block_path="/dev/$partition_block"
 
         # Check if the entered partition block exists
         if [ -b "$partition_block_path" ]; then
@@ -66,18 +66,18 @@ get_partition_block() {
                 read -r confirm
 
                 case $confirm in
-                    [Yy]* | '' )
-                        valid_input=true
-                        break
-                        ;;
-                    [Nn]* )
-                        clear
-                        break
-                        ;;
-                    * )
-                        clear
-                        display_error "Invalid input. Please enter y or n."
-                        ;;
+                [Yy]* | '')
+                    valid_input=true
+                    break
+                    ;;
+                [Nn]*)
+                    clear
+                    break
+                    ;;
+                *)
+                    clear
+                    display_error "Invalid input. Please enter y or n."
+                    ;;
                 esac
             done
         else
@@ -89,45 +89,46 @@ get_partition_block() {
 }
 
 set_partition_vars() {
-if $(is_uefi_boot); then
-    # GPT
-    EFI_MTPT="/mnt/boot/efi"
-    if [[ $IN_DEVICE =~ nvme ]]; then
-        EFI_PARTITION="${partition_block_path}p1" 
-	ROOT_PARTITION="${partition_block_path}p2"
-        SWAP_PARTITION="${partition_block_path}p3"
+    if $(is_uefi_boot); then
+        # GPT
+        EFI_MTPT="/mnt/boot/efi"
+        if [[ $IN_DEVICE =~ nvme ]]; then
+            EFI_PARTITION="${partition_block_path}p1"
+            ROOT_PARTITION="${partition_block_path}p2"
+            SWAP_PARTITION="${partition_block_path}p3"
+        else
+            EFI_PARTITION="${partition_block_path}1"
+        fi
     else
-        EFI_PARTITION="${partition_block_path}1" 
+        # MBR
+        BOOT_MTPT="/mnt/boot"
+        BOOT_PARTITION="${partition_block_path}1"
     fi
-else
-    # MBR
-    BOOT_MTPT="/mnt/boot"
-    BOOT_PARTITION="${partition_block_path}1"
-fi
 
-ROOT_PARTITION="${partition_block_path}2"
-SWAP_PARTITION="${partition_block_path}3" }
+    ROOT_PARTITION="${partition_block_path}2"
+    SWAP_PARTITION="${partition_block_path}3"
+}
 
 read_partition_size() {
     clear
     while true; do
         display_info "Available space: $(numfmt --to=iec --format='%.1f' "$2")"
-	prompt_input "$1"
-        read -r  size
+        prompt_input "$1"
+        read -r size
         if [[ "$size" =~ ^[0-9]+[KMGT]$ ]]; then
             size_bytes=$(numfmt --from=iec "$size")
             if [[ "$size_bytes" -le 0 ]]; then
-		clear
+                clear
                 display_error "Invalid size. Please specify a valid size." && echo
             elif [[ "$size_bytes" -gt "$2" ]]; then
-		clear
+                clear
                 display_error "Not enough available space. Please specify a size smaller than $(numfmt --to=iec --format='%.1f' "$2")." && echo
             else
-	        if [[ $3 == "boot_size" ]]; then
-	            boot_size=$size
-	        else
-		    swap_size=$size
-		fi
+                if [[ $3 == "boot_size" ]]; then
+                    boot_size=$size
+                else
+                    swap_size=$size
+                fi
 
                 available_space=$(($2 - size_bytes))
                 break
@@ -155,7 +156,7 @@ confirm_partition_sizes() {
 
     prompt_input "Are you satisfied with these partition sizes? (Y/n) "
     read -r choice
-    while [[ "$choice" != "y" && "$choice" != "n"  && "$choice" != "" ]]; do
+    while [[ "$choice" != "y" && "$choice" != "n" && "$choice" != "" ]]; do
         prompt_input "Invalid input. Please enter 'y' or 'n': "
         read -r choice
     done
@@ -177,19 +178,19 @@ set_partition_sizes() {
     prompt="Enter SWAP partition size (e.g. 4G): "
     read_partition_size "$prompt" "$available_space" "swap_size"
 
-    confirm_partition_sizes 
+    confirm_partition_sizes
     [[ $? -ne 0 ]] && set_partition_sizes
 }
 
-format_partition(){
+format_partition() {
     mkfs."$2" "$1" || display_error "format_partition(): Can't format device $1 with $2"
 }
 
-mount_partition(){
+mount_partition() {
     mount "$1" "$2" || display_error "mount_partition(): Can't mount $1 to $2"
 }
 
-create_partitions(){
+create_partitions() {
     if $(is_uefi_boot); then
         sgdisk -Z "$partition_block_path"
         sgdisk -n 1::+"$boot_size" -t 1:ef00 -c 1:EFI "$partition_block_path"
@@ -199,25 +200,25 @@ create_partitions(){
         # Format
         mkfs.fat -F32 "$EFI_PARTITION"
         format_partition "$ROOT_PARTITION" "ext4"
-        mkswap "$SWAP_PARTITION" 
-	# Mount
+        mkswap "$SWAP_PARTITION"
+        # Mount
         mkdir -p "$EFI_MTPT"
         mount_partition "$EFI_PARTITION" "$EFI_MTPT"
         mount_partition "$ROOT_PARTITION" /mnt
         swapon "$SWAP_PARTITION"
     else
-	cat > /tmp/sfdisk.cmd << EOF
+        cat >/tmp/sfdisk.cmd <<EOF
 $BOOT_PARTITION : start= 2048, size=+$boot_size, type=83, bootable
 $SWAP_PARTITION : size=+$swap_size, type=82
 $ROOT_PARTITION : type=83
 EOF
-        sfdisk "$partition_block_path" < /tmp/sfdisk.cmd
+        sfdisk "$partition_block_path" </tmp/sfdisk.cmd
 
-	# Format
+        # Format
         format_partition "$BOOT_PARTITION" "ext4"
         format_partition "$ROOT_PARTITION" "ext4"
-        mkswap "$SWAP_PARTITION" 
-	# Mount
+        mkswap "$SWAP_PARTITION"
+        # Mount
         mkdir -p "$BOOT_MTPT"
         mount_partition "$BOOT_PARTITION" "$BOOT_MTPT"
         mount_partition "$ROOT_PARTITION" /mnt
@@ -228,70 +229,69 @@ EOF
 }
 
 set_password() {
-  while true; do
-    prompt_input "Please enter a password for $1: "
-    read -r -s password
-    if [[ -z "$password" ]]; then
-      echo
-      display_error "You need to enter a password, please try again."
-    else
-      prompt_input "Please enter the password again: "
-      read -r -s password2
-      echo
-      if [[ "$password" != "$password2" ]]; then
-        display_error "Passwords don't match, please try again."
-      else
-          if [[ $1 == "root" ]]; then
-	        root_pass=$password
-	    else
-		user_pass=$password
+    while true; do
+        prompt_input "Please enter a password for $1: "
+        read -r -s password
+        if [[ -z "$password" ]]; then
+            echo
+            display_error "You need to enter a password, please try again."
+        else
+            prompt_input "Please enter the password again: "
+            read -r -s password2
+            echo
+            if [[ "$password" != "$password2" ]]; then
+                display_error "Passwords don't match, please try again."
+            else
+                if [[ $1 == "root" ]]; then
+                    root_pass=$password
+                else
+                    user_pass=$password
+                fi
+                return 0
             fi
-        return 0
-      fi
-    fi
-  done
+        fi
+    done
 }
 
 create_user_account() {
-  while true; do
-    prompt_input "Please enter a name for the user account (leave blank to not create one): "
-    read -r username
+    while true; do
+        prompt_input "Please enter a name for the user account (leave blank to not create one): "
+        read -r username
 
-    if [[ -z "$username" ]]; then
-      break
-    fi
+        if [[ -z "$username" ]]; then
+            break
+        fi
 
-    set_password "$username"
+        set_password "$username"
 
-    # Create the user account.
-    useradd -m "$username" || {
-      display_error "Failed to create user account '$username'."
-      continue
-    }
-    echo "$username:$user_pass" | chpasswd || {
-      display_error "Failed to set password for user account '$username'."
-      continue
-    }
+        # Create the user account.
+        useradd -m "$username" || {
+            display_error "Failed to create user account '$username'."
+            continue
+        }
+        echo "$username:$user_pass" | chpasswd || {
+            display_error "Failed to set password for user account '$username'."
+            continue
+        }
 
-    display_info "User account '$username' created."
-  done
+        display_info "User account '$username' created."
+    done
 
 }
 
 set_root_password() {
-  # Prompt for the root password.
-  set_password "root" || {
-    display_error "Failed to set root password."
-    return 1
-  }
-  echo "root:$root_pass" | chpasswd || {
-    display_error "Failed to set root password."
-    return 1
-  }
+    # Prompt for the root password.
+    set_password "root" || {
+        display_error "Failed to set root password."
+        return 1
+    }
+    echo "root:$root_pass" | chpasswd || {
+        display_error "Failed to set root password."
+        return 1
+    }
 
-  return 0
+    return 0
 }
-
 
 clear
 
