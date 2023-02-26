@@ -230,17 +230,15 @@ EOF
 
 set_password() {
     while true; do
-        prompt_input "Please enter a password for $1: "
+        prompt_input "Enter a password for $1: "
         read -r -s password
         if [[ -z "$password" ]]; then
-            echo
-            display_error "You need to enter a password, please try again."
+            clear && display_error "You need to enter a password, try again."
         else
-            prompt_input "Please enter the password again: "
-            read -r -s password2
-            echo
+            echo && prompt_input "Enter the password again: "
+            read -r -s password2 && echo
             if [[ "$password" != "$password2" ]]; then
-                display_error "Passwords don't match, please try again."
+                clear && display_error "Passwords don't match, try again."
             else
                 if [[ $1 == "root" ]]; then
                     root_pass=$password
@@ -254,33 +252,40 @@ set_password() {
 }
 
 create_user_account() {
+    display_info "Create user(s)." && echo
     while true; do
-        prompt_input "Please enter a name for the user account (leave blank to not create one): "
+        prompt_input "Enter username (leave blank to stop): "
         read -r username
 
-        if [[ -z "$username" ]]; then
-            break
-        fi
+	if id "$username" > /dev/null 2>&1; then
+	    clear
+	    display_error "User $username already exists, try again."
+	    continue
+	fi
 
+        [[ -z "$username" ]] && break
         set_password "$username"
 
         # Create the user account.
-        useradd -m "$username" || {
-            display_error "Failed to create user account '$username'."
+        useradd -m "$username" > /dev/null 2>&1 || {
+            display_error "Failed to create an account for '$username'."
             continue
         }
         echo "$username:$user_pass" | chpasswd || {
-            display_error "Failed to set password for user account '$username'."
+            display_error "Failed to set a password for '$username'."
             continue
         }
 
-        display_info "User account '$username' created."
+        echo && display_info "User account '$username' created."
+	pause_script
     done
-
 }
 
 set_root_password() {
     # Prompt for the root password.
+    clear
+    display_info "Set a root password." && echo
+
     set_password "root" || {
         display_error "Failed to set root password."
         return 1
@@ -290,22 +295,26 @@ set_root_password() {
         return 1
     }
 
+    display_info "Root password set successfully."
+    pause_script
+
     return 0
 }
 
 clear
 
-create_user_account
-set_root_password
 
-#display_info "Checking firmware system..." && sleep 1
-#output_firmware_system
-#pause_script
-#
-#get_partition_block
-#pause_script
-#
-#set_partition_vars
-#set_partition_sizes
-#create_partitions
-#pause_script
+display_info "Checking firmware system..." && sleep 1
+output_firmware_system
+pause_script
+
+get_partition_block
+pause_script
+
+set_partition_vars
+set_partition_sizes
+create_partitions
+pause_script
+
+set_root_password
+create_user_account
