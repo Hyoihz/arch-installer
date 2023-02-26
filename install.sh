@@ -31,9 +31,9 @@ is_uefi_boot() {
 
 output_firmware_system() {
     if is_uefi_boot; then
-        echo && display_info "The system is using UEFI boot."
+        echo && display_info "Your system is using UEFI boot."
     else
-        echo && display_info "The system is using BIOS legacy boot."
+        echo && display_info "Your system is using BIOS legacy boot."
     fi
 }
 
@@ -49,7 +49,7 @@ get_partition_block() {
 
     while ! $valid_input; do
         # Show available block devices
-        display_info "Select the block to create partition table on."
+        display_info "Select the block you wish to partition."
         display_info "Available block devices:"
         lsblk -o NAME,SIZE,MODEL
 
@@ -62,7 +62,7 @@ get_partition_block() {
         if [ -b "$partition_block_path" ]; then
             # Prompt user for confirmation
             while true; do
-                prompt_input "Partition table will be created on $partition_block_path. Proceed? (Y/n): "
+                prompt_input "You've chosen ${BOLD}$partition_block${RESET}${YELLOW} for partitioning. Proceed? (Y/n): "
                 read -r confirm
 
                 case $confirm in
@@ -83,7 +83,7 @@ get_partition_block() {
         else
             # Partition block does not exist
             clear
-            display_error "Partition block $partition_block_path does not exist." && echo
+            display_error "Partition block $partition_block does not exist." && echo
         fi
     done
 }
@@ -110,15 +110,19 @@ SWAP_PARTITION="${partition_block_path}3"
 }
 
 read_partition_size() {
+    clear
     while true; do
-        echo "Available space: $(numfmt --to=iec --format='%.1f' "$2")"
-        read -rp "$1" size
+        display_info "Available space: $(numfmt --to=iec --format='%.1f' "$2")"
+	prompt_input "$1"
+        read -r  size
         if [[ "$size" =~ ^[0-9]+[KMGT]$ ]]; then
             size_bytes=$(numfmt --from=iec "$size")
             if [[ "$size_bytes" -le 0 ]]; then
-                echo "Invalid size. Please specify a positive size."
+		clear
+                display_error "Invalid size. Please specify a valid size." && echo
             elif [[ "$size_bytes" -gt "$2" ]]; then
-                echo "Not enough available space. Please specify a size smaller than $(numfmt --to=iec --format='%.1f' "$2")."
+		clear
+                display_error "Not enough available space. Please specify a size smaller than $(numfmt --to=iec --format='%.1f' "$2")." && echo
             else
 	        if [[ $3 == "boot_size" ]]; then
 	            boot_size=$size
@@ -130,24 +134,31 @@ read_partition_size() {
                 break
             fi
         else
-            echo "Invalid size. Please specify a size in the format [0-9]+[KMG] (e.g. 512M)."
+            clear
+            display_error "Invalid size. Please specify a size in the format [0-9]+[KMG] (e.g. 512M)." && echo
         fi
     done
 }
 
 confirm_partition_sizes() {
+    clear
+    display_info "Consuming remaining size for root..." && sleep 1
+    display_info "Assigned partition sizes: " && echo
+
     if $(is_uefi_boot); then
-        echo "EFI partition size: $boot_size"
+        display_info "EFI partition size: $boot_size"
     else
-        echo "BOOT partition size: $boot_size"
+        display_info "BOOT partition size: $boot_size"
     fi
 
-    echo "SWAP partition size: $swap_size"
-    echo "ROOT partition size: $(numfmt --to=iec --format='%.1f' "$available_space")"
+    display_info "SWAP partition size: $swap_size"
+    display_info "ROOT partition size: $(numfmt --to=iec --format='%.1f' "$available_space")"
 
-    read -rp "Are you satisfied with these partition sizes? (Y/n) " choice
+    prompt_input "Are you satisfied with these partition sizes? (Y/n) "
+    read -r choice
     while [[ "$choice" != "y" && "$choice" != "n"  && "$choice" != "" ]]; do
-        read -rp "Invalid input. Please enter 'y' or 'n': " choice
+        prompt_input "Invalid input. Please enter 'y' or 'n': "
+        read -r choice
     done
 
     [[ "$choice" == "n" ]] && return 1 || return 0
@@ -164,7 +175,7 @@ set_partition_sizes() {
 
     read_partition_size "$prompt" "$available_space" "boot_size"
 
-    prompt="Enter swap partition size (e.g. 4G): "
+    prompt="Enter SWAP partition size (e.g. 4G): "
     read_partition_size "$prompt" "$available_space" "swap_size"
 
     confirm_partition_sizes 
@@ -172,13 +183,11 @@ set_partition_sizes() {
 }
 
 format_partition(){
-    partition=$1; fstype=$2
-    mkfs."$fstype" "$partition" || error "format_partition(): Can't format device $device with $fstype"
+    mkfs."$2 "$1 || display_error "format_partition(): Can't format device $1 with $2"
 }
 
 mount_partition(){
-    partition=$1; mt_pt=$2
-    mount "$device" "$mt_pt" || error "mount_partition(): Can't mount $device to $mt_pt"
+    mount "$1" "$2" || display_error "mount_partition(): Can't mount $1 to $2"
 }
 
 create_partitions(){
@@ -210,20 +219,18 @@ EOF
         format_partition "$ROOT_PARTITION" "ext4"
         mkswap "$SWAP_PARTITION" 
 	# Mount
-        mkdir -p /mnt/boot
+        mkdir -p "$BOOT_MTPT"
         mount_partition "$BOOT_PARTITION" "$BOOT_MTPT"
         mount_partition "$ROOT_PARTITION" /mnt
         swapon "$SWAP_PARTITION"
     fi
 
-    clear && lsblk "$partition_block_path"
-    pause_script
+    echo && lsblk "$partition_block_path"
 }
 
+clear
 
-display_info "Checking firmware system..."
-sleep 1
-
+display_info "Checking firmware system..." && sleep 1
 output_firmware_system
 pause_script
 
@@ -233,3 +240,4 @@ pause_script
 set_partition_vars
 set_partition_sizes
 create_partitions
+pause_script
