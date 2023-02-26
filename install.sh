@@ -44,9 +44,10 @@ pause_script() {
 }
 
 get_partition_block() {
-    # Loop until a valid partition block is entered
+    # Flag to stop the outer loop in the inner loop
     valid_input=false
 
+    # Loop until a valid partition block is entered
     while ! $valid_input; do
         # Show available block devices
         display_info "Select the block you wish to partition."
@@ -157,6 +158,7 @@ confirm_partition_sizes() {
     # Prompt the user to confirm the partition sizes
     prompt_input "Are you satisfied with these partition sizes? (Y/n) "
     read -r choice
+
     while [[ "$choice" != "y" && "$choice" != "n" && "$choice" != "" ]]; do
         prompt_input "Invalid input. Please enter 'y' or 'n': "
         read -r choice
@@ -197,9 +199,9 @@ mount_partition() {
 }
 
 create_partitions() {
-    # Creates partitions on the block device, formats them, and mounts them.
+    # Creates partitions on the block device, formats them, and mounts them
     if $(is_uefi_boot); then
-        # Create GPT partition table and partitions for UEFI boot.
+        # Create GPT partition table and partitions for UEFI boot
         sgdisk -Z "$partition_block_path"
         sgdisk -n 1::+"$boot_size" -t 1:ef00 -c 1:EFI "$partition_block_path"
         sgdisk -n 2::+"$swap_size" -t 2:8200 -c 2:SWAP "$partition_block_path"
@@ -216,7 +218,7 @@ create_partitions() {
         mount_partition "$ROOT_PARTITION" /mnt
         swapon "$SWAP_PARTITION"
     else
-	# Create partitions for BIOS boot.
+	# Create partitions for BIOS boot
         cat >/tmp/sfdisk.cmd <<EOF
 $BOOT_PARTITION : start= 2048, size=+$boot_size, type=83, bootable
 $SWAP_PARTITION : size=+$swap_size, type=82
@@ -269,6 +271,7 @@ set_password() {
 
 create_user_account() {
     display_info "Create a user credential." && echo
+
     while true; do
         prompt_input "Enter username (leave blank ito not create one): "
         read -r username
