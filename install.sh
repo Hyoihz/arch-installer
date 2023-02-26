@@ -270,9 +270,6 @@ set_root_password() {
     # Prompt for the root password.
     clear && display_info "Set a root password." && echo
 
-    set_password "root" || {
-        display_error "Failed to set root password."
-    }
     echo "root:$root_pass" | chpasswd || {
         display_error "Failed to set root password."
     }
