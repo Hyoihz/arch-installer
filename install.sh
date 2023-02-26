@@ -109,23 +109,23 @@ set_partition_vars() {
 read_partition_size() {
     clear
     while true; do
-	# Get the available space for the partition
+        # Get the available space for the partition
         display_info "Available space: $(numfmt --to=iec --format='%.1f' "$2")"
-	# Prompt the user to enter the partition size
+        # Prompt the user to enter the partition size
         prompt_input "$1"
         read -r size
 
-	# Validate the partition size format and available space
+        # Validate the partition size format and available space
         if [[ "$size" =~ ^[0-9]+[KMGT]$ ]]; then
             size_bytes=$(numfmt --from=iec "$size")
             if [[ "$size_bytes" -le 0 ]]; then
-		# Display an error if the partition size is invalid
+                # Display an error if the partition size is invalid
                 clear && display_error "Invalid size. Please specify a valid size." && echo
             elif [[ "$size_bytes" -gt "$2" ]]; then
-		# Display an error if the partition size is larger than the available space
+                # Display an error if the partition size is larger than the available space
                 clear && display_error "Not enough available space. Please specify a size smaller than $(numfmt --to=iec --format='%.1f' "$2")." && echo
             else
-		# Assign the partition size to the appropriate variable and update the available space
+                # Assign the partition size to the appropriate variable and update the available space
                 if [[ $3 == "boot_size" ]]; then
                     boot_size=$size
                 else
@@ -218,7 +218,7 @@ create_partitions() {
         mount_partition "$ROOT_PARTITION" /mnt
         swapon "$SWAP_PARTITION"
     else
-	# Create partitions for BIOS boot
+        # Create partitions for BIOS boot
         cat >/tmp/sfdisk.cmd <<EOF
 $BOOT_PARTITION : start= 2048, size=+$boot_size, type=83, bootable
 $SWAP_PARTITION : size=+$swap_size, type=82
@@ -246,19 +246,19 @@ set_password() {
         prompt_input "Enter a password for $1: "
         read -r -s password
 
-	# Check if the password is empty
+        # Check if the password is empty
         if [[ -z "$password" ]]; then
             clear && display_error "You need to enter a password, try again."
         else
-	    # Prompt the user to confirm the password
+            # Prompt the user to confirm the password
             echo && prompt_input "Enter the password again: "
             read -r -s password2 && echo
-	    
-	    # Check if the two passwords match
+
+            # Check if the two passwords match
             if [[ "$password" != "$password2" ]]; then
                 clear && display_error "Passwords don't match, try again."
             else
-	        # Store the password as root password or user password
+                # Store the password as root password or user password
                 if [[ $1 == "root" ]]; then
                     root_pass=$password
                 else
@@ -288,22 +288,22 @@ create_user_account() {
         prompt_input "Enter username (leave blank ito not create one): "
         read -r username
 
-	# Check if the user already exists
+        # Check if the user already exists
         if id "$username" >/dev/null 2>&1; then
             clear && display_error "User $username already exists, try again." && continue
         fi
- 
-	# If the username is empty, exit the loop
+
+        # If the username is empty, exit the loop
         [[ -z "$username" ]] && break
 
         set_password "$username"
 
-	# Create the user account
-	arch-chroot /mnt bash -c "useradd -m -G wheel '$username' >/dev/null 2>&1" || {
-	    display_error "Failed to create an account for '$username'." && continue
-	}
+        # Create the user account
+        arch-chroot /mnt bash -c "useradd -m -G wheel '$username' >/dev/null 2>&1" || {
+            display_error "Failed to create an account for '$username'." && continue
+        }
 
-	# Set the password for the user account
+        # Set the password for the user account
         echo "$username:$user_pass" | arch-chroot /mnt chpasswd || {
             display_error "Failed to set a password for '$username'." && continue
         }
@@ -318,19 +318,19 @@ set_hostname() {
         prompt_input "Please enter a hostname: "
         read -r hostname
 
-	# If hostname is empty, print an error message and continue the loop until a valid input is provided
+        # If hostname is empty, print an error message and continue the loop until a valid input is provided
         [[ -z "$hostname" ]] && display_error "You need to enter a hostname in order to continue." && continue
     done
 }
 
 set_host() {
-    echo "$hostname" > /etc/hostname
+    echo "$hostname" >/etc/hostname
 
     {
-      echo "127.0.0.1       localhost"
-      echo "::1             localhost"
-      echo "127.0.1.1       $hostname.localdomain       $hostname"
-    } >> /etc/hosts
+        echo "127.0.0.1       localhost"
+        echo "::1             localhost"
+        echo "127.0.1.1       $hostname.localdomain       $hostname"
+    } >>/etc/hosts
 }
 
 set_timezone() {
@@ -339,20 +339,19 @@ set_timezone() {
 }
 
 set_locale() {
-    echo "en_US.UTF-8 UTF-8" >> /etc/locale.gen
+    echo "en_US.UTF-8 UTF-8" >>/etc/locale.gen
     locale-gen
-    echo "LANG=en_US.UTF-8" > /etc/locale.conf
+    echo "LANG=en_US.UTF-8" >/etc/locale.conf
 }
 
 set_grub() {
     if is_uefi_boot; then
         grub-install --target=x86_64-efi --efi-directory=/boot/efi --bootloader-id=GRUB
     else
-	grub-install --target=i386-pc $partition_block_path
+        grub-install --target=i386-pc $partition_block_path
     fi
     grub-mkconfig -o /boot/grub/grub.cfg
 }
-
 
 get_microcode() {
     # Detect CPU manufacturer and set appropriate microcode package
@@ -386,4 +385,4 @@ pacstrap -K /mnt base base-devel linux linux-firmware linux-headers
 
 # Generate an fstab file
 display_info "Generating fstab..."
-genfstab -U /mnt >> /mnt/etc/fstab
+genfstab -U /mnt >>/mnt/etc/fstab
