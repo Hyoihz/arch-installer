@@ -183,7 +183,7 @@ set_partition_sizes() {
 }
 
 format_partition(){
-    mkfs."$2 "$1 || display_error "format_partition(): Can't format device $1 with $2"
+    mkfs."$2" "$1" || display_error "format_partition(): Can't format device $1 with $2"
 }
 
 mount_partition(){
@@ -198,7 +198,7 @@ create_partitions(){
         sgdisk -n 3 -t 3:8300 -c 3:ROOT "$partition_block_path"
 
         # Format
-        format_partition "$EFI_PARTITION" "fat -F32"
+        mkfs.fat -F32 "$EFI_PARTITION"
         format_partition "$ROOT_PARTITION" "ext4"
         mkswap "$SWAP_PARTITION" 
 	# Mount
