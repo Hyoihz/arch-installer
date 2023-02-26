@@ -110,60 +110,44 @@ ROOT_PARTITION="${partition_block_path}2"
 SWAP_PARTITION="${partition_block_path}3"
 }
 
-set_partition_sizes() {
-    available_space=$(lsblk -nb -o SIZE -d "$partition_block_path" | tail -1)
 
-    if $(is_uefi_boot); then
-        prompt="Enter EFI partition size (e.g. 512M): "
-    else
-        prompt="Enter BOOT partition size (e.g. 512M): "
-    fi
-
+read_partition_size() {
     while true; do
-    echo "Available space: $(numfmt --to=iec --format='%.1f' "$available_space")"
-    read -rp "$prompt" size
+        echo "Available space: $(numfmt --to=iec --format='%.1f' "$2")"
+        read -rp "$1" size
         if [[ "$size" =~ ^[0-9]+[KMGT]$ ]]; then
             size_bytes=$(numfmt --from=iec "$size")
             if [[ "$size_bytes" -le 0 ]]; then
                 echo "Invalid size. Please specify a positive size."
-            elif [[ "$size_bytes" -gt "$available_space" ]]; then
-                echo "Not enough available space. Please specify a size smaller than $(numfmt --to=iec --format='%.1f' "$available_space")."
+            elif [[ "$size_bytes" -gt "$2" ]]; then
+                echo "Not enough available space. Please specify a size smaller than $(numfmt --to=iec --format='%.1f' "$2")."
             else
-                available_space=$((available_space - size_bytes))
+                available_space=$(($2 - size_bytes))
                 break
             fi
         else
             echo "Invalid size. Please specify a size in the format [0-9]+[KMG] (e.g. 512M)."
         fi
     done
+}
 
-    prompt="Enter swap partition size (e.g. 4G): "
-    while true; do
-    echo "Available space: $(numfmt --to=iec --format='%.1f' "$available_space")"
-    read -rp "$prompt" swap_size
-        if [[ "$swap_size" =~ ^[0-9]+[KMGT]$ ]]; then
-            swap_size_bytes=$(numfmt --from=iec "$swap_size")
-            if [[ "$swap_size_bytes" -le 0 ]]; then
-                echo "Invalid size. Please specify a positive size."
-            elif [[ "$swap_size_bytes" -gt "$available_space" ]]; then
-                echo "Not enough available space. Please specify a size smaller than $(numfmt --to=iec --format='%.1f' "$available_space")."
-            else
-                available_space=$((available_space - swap_size_bytes))
-                break
-            fi
-        else
-            echo "Invalid size. Please specify a size in the format [0-9]+[KMG] (e.g. 4G)."
-        fi
-    done
+set_partition_sizes() {
+    available_space=$(lsblk -nb -o SIZE -d "$partition_block_path" | tail -1)
 
     if $(is_uefi_boot); then
+        prompt="Enter EFI partition size (e.g. 512M): "
+        read_partition_size "$prompt" "$available_space" size
         echo "EFI partition size: $size"
     else
+        prompt="Enter BOOT partition size (e.g. 512M): "
+        read_partition_size "$prompt" "$available_space" size
         echo "BOOT partition size: $size"
     fi
 
+    prompt="Enter swap partition size (e.g. 4G): "
+    read_partition_size "$prompt" "$available_space" swap_size
     echo "SWAP partition size: $swap_size"
-    echo "ROOT partition size: $(numfmt --to=iec "$available_space")"
+    echo "ROOT partition size: $(numfmt --to=iec --format='%.1f' "$available_space")"
 
     read -rp "Are you satisfied with these partition sizes? (Y/n) " choice
     while [[ "$choice" != "y" && "$choice" != "n"  && "$choice" != "" ]]; do
@@ -175,6 +159,72 @@ set_partition_sizes() {
     fi
 }
 
+
+#set_partition_sizes() {
+#    available_space=$(lsblk -nb -o SIZE -d "$partition_block_path" | tail -1)
+#
+#    if $(is_uefi_boot); then
+#        prompt="Enter EFI partition size (e.g. 512M): "
+#    else
+#        prompt="Enter BOOT partition size (e.g. 512M): "
+#    fi
+#
+#    while true; do
+#    echo "Available space: $(numfmt --to=iec --format='%.1f' "$available_space")"
+#    read -rp "$prompt" size
+#        if [[ "$size" =~ ^[0-9]+[KMGT]$ ]]; then
+#            size_bytes=$(numfmt --from=iec "$size")
+#            if [[ "$size_bytes" -le 0 ]]; then
+#                echo "Invalid size. Please specify a positive size."
+#            elif [[ "$size_bytes" -gt "$available_space" ]]; then
+#                echo "Not enough available space. Please specify a size smaller than $(numfmt --to=iec --format='%.1f' "$available_space")."
+#            else
+#                available_space=$((available_space - size_bytes))
+#                break
+#            fi
+#        else
+#            echo "Invalid size. Please specify a size in the format [0-9]+[KMG] (e.g. 512M)."
+#        fi
+#    done
+#
+#    prompt="Enter swap partition size (e.g. 4G): "
+#    while true; do
+#    echo "Available space: $(numfmt --to=iec --format='%.1f' "$available_space")"
+#    read -rp "$prompt" swap_size
+#        if [[ "$swap_size" =~ ^[0-9]+[KMGT]$ ]]; then
+#            swap_size_bytes=$(numfmt --from=iec "$swap_size")
+#            if [[ "$swap_size_bytes" -le 0 ]]; then
+#                echo "Invalid size. Please specify a positive size."
+#            elif [[ "$swap_size_bytes" -gt "$available_space" ]]; then
+#                echo "Not enough available space. Please specify a size smaller than $(numfmt --to=iec --format='%.1f' "$available_space")."
+#            else
+#                available_space=$((available_space - swap_size_bytes))
+#                break
+#            fi
+#        else
+#            echo "Invalid size. Please specify a size in the format [0-9]+[KMG] (e.g. 4G)."
+#        fi
+#    done
+#
+#    if $(is_uefi_boot); then
+#        echo "EFI partition size: $size"
+#    else
+#        echo "BOOT partition size: $size"
+#    fi
+#
+#    echo "SWAP partition size: $swap_size"
+#    echo "ROOT partition size: $(numfmt --to=iec --format='%.1f' "$available_space")"
+#
+#    read -rp "Are you satisfied with these partition sizes? (Y/n) " choice
+#    while [[ "$choice" != "y" && "$choice" != "n"  && "$choice" != "" ]]; do
+#        read -rp "Invalid input. Please enter 'y' or 'n': " choice
+#    done
+#
+#    if [[ "$choice" == "n" ]]; then
+#        set_partition_sizes
+#    fi
+#}
+#
 
 format_partition(){
     device=$1; fstype=$2
