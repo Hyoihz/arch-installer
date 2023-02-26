@@ -67,15 +67,15 @@ get_partition_block() {
                 read -r confirm
 
                 case $confirm in
-                [Yy]* | '')
-                    valid_input=true && break
-                    ;;
-                [Nn]*)
-                    clear && break
-                    ;;
-                *)
-                    clear && display_error "Invalid input. Please enter y or n."
-                    ;;
+                    [Yy]* | '')
+                        valid_input=true && break
+                        ;;
+                    [Nn]*)
+                        clear && break
+                        ;;
+                    *)
+                        clear && display_error "Invalid input. Please enter y or n."
+                        ;;
                 esac
             done
         else
@@ -219,12 +219,12 @@ create_partitions() {
         swapon "$SWAP_PARTITION"
     else
         # Create partitions for BIOS boot
-        cat >/tmp/sfdisk.cmd <<EOF
+        cat > /tmp/sfdisk.cmd << EOF
 $BOOT_PARTITION : start= 2048, size=+$boot_size, type=83, bootable
 $SWAP_PARTITION : size=+$swap_size, type=82
 $ROOT_PARTITION : type=83
 EOF
-        sfdisk "$partition_block_path" </tmp/sfdisk.cmd
+        sfdisk "$partition_block_path" < /tmp/sfdisk.cmd
 
         # Format partitions
         format_partition "$BOOT_PARTITION" "ext4"
@@ -289,7 +289,7 @@ create_user_account() {
         read -r username
 
         # Check if the user already exists
-        if id "$username" >/dev/null 2>&1; then
+        if id "$username" > /dev/null 2>&1; then
             clear && display_error "User $username already exists, try again." && continue
         fi
 
@@ -324,13 +324,13 @@ set_hostname() {
 }
 
 set_host() {
-    echo "$hostname" >/etc/hostname
+    echo "$hostname" > /etc/hostname
 
     {
         echo "127.0.0.1       localhost"
         echo "::1             localhost"
         echo "127.0.1.1       $hostname.localdomain       $hostname"
-    } >>/etc/hosts
+    } >> /etc/hosts
 }
 
 set_timezone() {
@@ -339,9 +339,9 @@ set_timezone() {
 }
 
 set_locale() {
-    echo "en_US.UTF-8 UTF-8" >>/etc/locale.gen
+    echo "en_US.UTF-8 UTF-8" >> /etc/locale.gen
     locale-gen
-    echo "LANG=en_US.UTF-8" >/etc/locale.conf
+    echo "LANG=en_US.UTF-8" > /etc/locale.conf
 }
 
 set_grub() {
@@ -385,4 +385,5 @@ pacstrap -K /mnt base base-devel linux linux-firmware linux-headers
 
 # Generate an fstab file
 display_info "Generating fstab..."
-genfstab -U /mnt >>/mnt/etc/fstab
+genfstab -U /mnt >> /mnt/etc/fstab
+enfstab -U /mnt >> /mnt/etc/fstab
