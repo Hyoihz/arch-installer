@@ -39,8 +39,7 @@ output_firmware_system() {
 
 pause_script() {
     prompt_input "Press any key to continue..."
-    read _
-    clear
+    read _ && clear
 }
 
 get_partition_block() {
@@ -67,23 +66,19 @@ get_partition_block() {
 
                 case $confirm in
                 [Yy]* | '')
-                    valid_input=true
-                    break
+                    valid_input=true && break
                     ;;
                 [Nn]*)
-                    clear
-                    break
+                    clear && break
                     ;;
                 *)
-                    clear
-                    display_error "Invalid input. Please enter y or n."
+                    clear && display_error "Invalid input. Please enter y or n."
                     ;;
                 esac
             done
         else
             # Partition block does not exist
-            clear
-            display_error "Partition block $partition_block does not exist." && echo
+            clear && display_error "Partition block $partition_block does not exist." && echo
         fi
     done
 }
@@ -118,11 +113,9 @@ read_partition_size() {
         if [[ "$size" =~ ^[0-9]+[KMGT]$ ]]; then
             size_bytes=$(numfmt --from=iec "$size")
             if [[ "$size_bytes" -le 0 ]]; then
-                clear
-                display_error "Invalid size. Please specify a valid size." && echo
+                clear && display_error "Invalid size. Please specify a valid size." && echo
             elif [[ "$size_bytes" -gt "$2" ]]; then
-                clear
-                display_error "Not enough available space. Please specify a size smaller than $(numfmt --to=iec --format='%.1f' "$2")." && echo
+                clear && display_error "Not enough available space. Please specify a size smaller than $(numfmt --to=iec --format='%.1f' "$2")." && echo
             else
                 if [[ $3 == "boot_size" ]]; then
                     boot_size=$size
@@ -130,19 +123,16 @@ read_partition_size() {
                     swap_size=$size
                 fi
 
-                available_space=$(($2 - size_bytes))
-                break
+                available_space=$(($2 - size_bytes)) && break
             fi
         else
-            clear
-            display_error "Invalid size. Please specify a size in the format [0-9]+[KMG] (e.g. 512M)." && echo
+            clear && display_error "Invalid size. Please specify a size in the format [0-9]+[KMG] (e.g. 512M)." && echo
         fi
     done
 }
 
 confirm_partition_sizes() {
-    clear
-    display_info "Consuming remaining size for root..." && sleep 1
+    clear display_info "Consuming remaining size for root..." && sleep 1
     display_info "Assigned partition sizes: " && echo
 
     if $(is_uefi_boot); then
@@ -245,22 +235,19 @@ set_password() {
                 else
                     user_pass=$password
                 fi
-                return 0
             fi
         fi
     done
 }
 
 create_user_account() {
-    display_info "Create user(s)." && echo
+    display_info "Create a user credential." && echo
     while true; do
-        prompt_input "Enter username (leave blank to stop): "
+        prompt_input "Enter username (leave blank ito not create one): "
         read -r username
 
 	if id "$username" > /dev/null 2>&1; then
-	    clear
-	    display_error "User $username already exists, try again."
-	    continue
+	    clear && display_error "User $username already exists, try again." && continue
 	fi
 
         [[ -z "$username" ]] && break
@@ -268,37 +255,30 @@ create_user_account() {
 
         # Create the user account.
         useradd -m "$username" > /dev/null 2>&1 || {
-            display_error "Failed to create an account for '$username'."
-            continue
+            display_error "Failed to create an account for '$username'." && continue
         }
         echo "$username:$user_pass" | chpasswd || {
-            display_error "Failed to set a password for '$username'."
-            continue
+            display_error "Failed to set a password for '$username'." && continue
         }
 
-        echo && display_info "User account '$username' created."
+        echo && display_info "User account '$username' created." && break
 	pause_script
     done
 }
 
 set_root_password() {
     # Prompt for the root password.
-    clear
-    display_info "Set a root password." && echo
+    clear && display_info "Set a root password." && echo
 
     set_password "root" || {
         display_error "Failed to set root password."
-        return 1
     }
     echo "root:$root_pass" | chpasswd || {
         display_error "Failed to set root password."
-        return 1
     }
 
     display_info "Root password set successfully."
     pause_script
-
-    return 0
 }
 
 clear
