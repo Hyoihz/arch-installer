@@ -91,7 +91,7 @@ get_partition_block() {
 set_partition_vars() {
 if $(is_uefi_boot); then
     # GPT
-    EFI_MTPT='/mnt/boot/efi'
+    EFI_MTPT="/mnt/boot/efi"
     if [[ $IN_DEVICE =~ nvme ]]; then
         EFI_PARTITION="${partition_block_path}p1" 
 	ROOT_PARTITION="${partition_block_path}p2"
@@ -101,7 +101,7 @@ if $(is_uefi_boot); then
     fi
 else
     # MBR
-    BOOT_MTPT='/mnt/boot'
+    BOOT_MTPT="/mnt/boot"
     BOOT_PARTITION="${partition_block_path}1"
 fi
 
@@ -172,53 +172,52 @@ set_partition_sizes() {
 }
 
 format_partition(){
-    device=$1; fstype=$2
-    mkfs."$fstype" "$device" || error "format_partition(): Can't format device $device with $fstype"
+    partition=$1; fstype=$2
+    mkfs."$fstype" "$partition" || error "format_partition(): Can't format device $device with $fstype"
 }
 
 mount_partition(){
-    device=$1; mt_pt=$2
+    partition=$1; mt_pt=$2
     mount "$device" "$mt_pt" || error "mount_partition(): Can't mount $device to $mt_pt"
 }
 
 create_partitions(){
-    # We're just doing partitions, no LVM here
-    clear
     if $(is_uefi_boot); then
         sgdisk -Z "$partition_block_path"
         sgdisk -n 1::+"$boot_size" -t 1:ef00 -c 1:EFI "$partition_block_path"
         sgdisk -n 2::+"$swap_size" -t 2:8200 -c 2:SWAP "$partition_block_path"
         sgdisk -n 3 -t 3:8300 -c 3:ROOT "$partition_block_path"
 
-        # Format and mount slices for EFI
-        format_partition "$ROOT_PARTITION" "vfat"
-        mount_partition "$ROOT_PARTITION" /mnt
-        mkfs.fat -F32 "$EFI_PARTITION"
-        mkdir -p /mnt/boot/efi
+        # Format
+        format_partition "$EFI_PARTITION" "fat -F32"
+        format_partition "$ROOT_PARTITION" "ext4"
+        mkswap "$SWAP_PARTITION" 
+	# Mount
+        mkdir -p "$EFI_MTPT"
         mount_partition "$EFI_PARTITION" "$EFI_MTPT"
-        mkswap "$SWAP_PARTITION" && swapon "$SWAP_PARTITION"
+        mount_partition "$ROOT_PARTITION" /mnt
+        swapon "$SWAP_PARTITION"
     else
-        # For non-EFI. Eg. for MBR systems
-cat > /tmp/sfdisk.cmd << EOF
+	cat > /tmp/sfdisk.cmd << EOF
 $BOOT_PARTITION : start= 2048, size=+$boot_size, type=83, bootable
 $SWAP_PARTITION : size=+$swap_size, type=82
 $ROOT_PARTITION : type=83
 EOF
-
-        # Using sfdisk because we're talking MBR disktable now...
         sfdisk "$partition_block_path" < /tmp/sfdisk.cmd
 
-        # Format and mount slices for non-EFI
-        format_partition "$ROOT_PARTITION" "ext4"
-        mount_partition "$ROOT_PARTITION" /mnt
+	# Format
         format_partition "$BOOT_PARTITION" "ext4"
-        mkdir /mnt/boot
+        format_partition "$ROOT_PARTITION" "ext4"
+        mkswap "$SWAP_PARTITION" 
+	# Mount
+        mkdir -p /mnt/boot
         mount_partition "$BOOT_PARTITION" "$BOOT_MTPT"
-        mkswap "$SWAP_PARTITION" && swapon "$SWAP_PARTITION"
+        mount_partition "$ROOT_PARTITION" /mnt
+        swapon "$SWAP_PARTITION"
     fi
 
-    lsblk "$partition_block_path"
-    echo "Type any key to continue..."; read empty
+    clear && lsblk "$partition_block_path"
+    pause_script
 }
 
 
