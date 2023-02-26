@@ -106,8 +106,7 @@ else
 fi
 
 ROOT_PARTITION="${partition_block_path}2"
-SWAP_PARTITION="${partition_block_path}3"
-}
+SWAP_PARTITION="${partition_block_path}3" }
 
 read_partition_size() {
     clear
@@ -183,7 +182,7 @@ set_partition_sizes() {
 }
 
 format_partition(){
-    mkfs."$2 "$1 || display_error "format_partition(): Can't format device $1 with $2"
+    mkfs."$2" "$1" || display_error "format_partition(): Can't format device $1 with $2"
 }
 
 mount_partition(){
@@ -198,7 +197,7 @@ create_partitions(){
         sgdisk -n 3 -t 3:8300 -c 3:ROOT "$partition_block_path"
 
         # Format
-        format_partition "$EFI_PARTITION" "fat -F32"
+	mkfs.fat -F32 "$EFI_PARTITION"
         format_partition "$ROOT_PARTITION" "ext4"
         mkswap "$SWAP_PARTITION" 
 	# Mount
@@ -228,16 +227,85 @@ EOF
     echo && lsblk "$partition_block_path"
 }
 
+set_password() {
+  while true; do
+    prompt_input "Please enter a password for $1: "
+    read -r -s password
+    if [[ -z "$password" ]]; then
+      echo
+      display_error "You need to enter a password, please try again."
+    else
+      prompt_input "Please enter the password again: "
+      read -r -s password2
+      echo
+      if [[ "$password" != "$password2" ]]; then
+        display_error "Passwords don't match, please try again."
+      else
+          if [[ $1 == "root" ]]; then
+	        root_pass=$password
+	    else
+		user_pass=$password
+            fi
+        return 0
+      fi
+    fi
+  done
+}
+
+create_user_account() {
+  while true; do
+    prompt_input "Please enter a name for the user account (leave blank to not create one): "
+    read -r username
+
+    if [[ -z "$username" ]]; then
+      break
+    fi
+
+    set_password "$username"
+
+    # Create the user account.
+    useradd -m "$username" || {
+      display_error "Failed to create user account '$username'."
+      continue
+    }
+    echo "$username:$user_pass" | chpasswd || {
+      display_error "Failed to set password for user account '$username'."
+      continue
+    }
+
+    display_info "User account '$username' created."
+  done
+
+}
+
+set_root_password() {
+  # Prompt for the root password.
+  set_password "root" || {
+    display_error "Failed to set root password."
+    return 1
+  }
+  echo "root:$root_pass" | chpasswd || {
+    display_error "Failed to set root password."
+    return 1
+  }
+
+  return 0
+}
+
+
 clear
 
-display_info "Checking firmware system..." && sleep 1
-output_firmware_system
-pause_script
+create_user_account
+set_root_password
 
-get_partition_block
-pause_script
-
-set_partition_vars
-set_partition_sizes
-create_partitions
-pause_script
+#display_info "Checking firmware system..." && sleep 1
+#output_firmware_system
+#pause_script
+#
+#get_partition_block
+#pause_script
+#
+#set_partition_vars
+#set_partition_sizes
+#create_partitions
+#pause_script
