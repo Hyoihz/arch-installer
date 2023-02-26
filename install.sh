@@ -246,15 +246,15 @@ create_user_account() {
         prompt_input "Enter username (leave blank ito not create one): "
         read -r username
 
-	if id "$username" > /dev/null 2>&1; then
-	    clear && display_error "User $username already exists, try again." && continue
-	fi
+        if id "$username" >/dev/null 2>&1; then
+            clear && display_error "User $username already exists, try again." && continue
+        fi
 
         [[ -z "$username" ]] && break
         set_password "$username"
 
         # Create the user account.
-        useradd -m "$username" > /dev/null 2>&1 || {
+        useradd -m "$username" >/dev/null 2>&1 || {
             display_error "Failed to create an account for '$username'." && continue
         }
         echo "$username:$user_pass" | chpasswd || {
@@ -262,7 +262,7 @@ create_user_account() {
         }
 
         echo && display_info "User account '$username' created." && break
-	pause_script
+        pause_script
     done
 }
 
@@ -282,7 +282,6 @@ set_root_password() {
 }
 
 clear
-
 
 display_info "Checking firmware system..." && sleep 1
 output_firmware_system
