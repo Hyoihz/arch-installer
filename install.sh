@@ -26,8 +26,7 @@ prompt_input () {
 }
 
 is_uefi_boot() {
-    [[ -d /sys/firmware/efi/ ]] && return 0
-    return 1
+    [[ -d /sys/firmware/efi/ ]] && return 0 || return 1
 }
 
 output_firmware_system() {
@@ -110,7 +109,6 @@ ROOT_PARTITION="${partition_block_path}2"
 SWAP_PARTITION="${partition_block_path}3"
 }
 
-
 read_partition_size() {
     while true; do
         echo "Available space: $(numfmt --to=iec --format='%.1f' "$2")"
@@ -152,11 +150,7 @@ confirm_partition_sizes() {
         read -rp "Invalid input. Please enter 'y' or 'n': " choice
     done
 
-    if [[ "$choice" == "n" ]]; then
-        return 1
-    fi
-
-    return 0
+    [[ "$choice" == "n" ]] && return 1 || return 0
 }
 
 set_partition_sizes() {
@@ -174,9 +168,7 @@ set_partition_sizes() {
     read_partition_size "$prompt" "$available_space" "swap_size"
 
     confirm_partition_sizes 
-    if [[ $? -ne 0 ]]; then
-        set_partition_sizes
-    fi
+    [[ $? -ne 0 ]] && set_partition_sizes
 }
 
 format_partition(){
