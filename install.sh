@@ -269,6 +269,18 @@ set_password() {
     done
 }
 
+set_root_password() {
+    clear && display_info "Set a root password." && echo
+
+    # Set the root password
+    echo "root:$root_pass" | chpasswd || {
+        display_error "Failed to set root password."
+    }
+
+    display_info "Root password set successfully."
+    pause_script
+}
+
 create_user_account() {
     display_info "Create a user credential." && echo
 
@@ -286,12 +298,13 @@ create_user_account() {
 
         set_password "$username"
 
-        # Create the user account
-        useradd -m "$username" >/dev/null 2>&1 || {
-            display_error "Failed to create an account for '$username'." && continue
-        }
+	# Create the user account
+	arch-chroot /mnt bash -c "useradd -m -G wheel '$username' >/dev/null 2>&1" || {
+	    display_error "Failed to create an account for '$username'." && continue
+	}
+
 	# Set the password for the user account
-        echo "$username:$user_pass" | chpasswd || {
+        echo "$username:$user_pass" | arch-chroot /mnt chpasswd || {
             display_error "Failed to set a password for '$username'." && continue
         }
 
@@ -300,24 +313,61 @@ create_user_account() {
     done
 }
 
-set_root_password() {
-    clear && display_info "Set a root password." && echo
+set_hostname() {
+    while true; do
+        prompt_input "Please enter a hostname: "
+        read -r hostname
 
-    # Set the root password
-    echo "root:$root_pass" | chpasswd || {
-        display_error "Failed to set root password."
-    }
+	# If hostname is empty, print an error message and continue the loop until a valid input is provided
+        [[ -z "$hostname" ]] && display_error "You need to enter a hostname in order to continue." && continue
+    done
+}
 
-    display_info "Root password set successfully."
-    pause_script
+set_host() {
+    echo "$hostname" > /etc/hostname
+
+    {
+      echo "127.0.0.1       localhost"
+      echo "::1             localhost"
+      echo "127.0.1.1       $hostname.localdomain       $hostname"
+    } >> /etc/hosts
+}
+
+set_timezone() {
+    ln -sf /usr/share/zoneinfo/"$(curl -s http://ip-api.com/line?fields=timezone)" /etc/localtime
+    hwclock --systohc
+}
+
+set_locale() {
+    echo "en_US.UTF-8 UTF-8" >> /etc/locale.gen
+    locale-gen
+    echo "LANG=en_US.UTF-8" > /etc/locale.conf
+}
+
+set_grub() {
+    if is_uefi_boot; then
+        grub-install --target=x86_64-efi --efi-directory=/boot/efi --bootloader-id=GRUB
+    else
+	grub-install --target=i386-pc $partition_block_path
+    fi
+    grub-mkconfig -o /boot/grub/grub.cfg
+}
+
+
+get_microcode() {
+    # Detect CPU manufacturer and set appropriate microcode package
+    CPU=$(grep vendor_id /proc/cpuinfo)
+    microcode="$([[ $CPU == *"AuthenticAMD"* ]] && echo "amd-ucode" || echo "intel-ucode")"
 }
 
 clear
 
+# Pre-install boot system info
 display_info "Checking firmware system..." && sleep 1
 output_firmware_system
 pause_script
 
+# Partitioning
 get_partition_block
 pause_script
 
@@ -326,5 +376,14 @@ set_partition_sizes
 create_partitions
 pause_script
 
+# Credentials
 set_root_password
 create_user_account
+
+# Installation of base system
+display_info "Installing the base system..."
+pacstrap -K /mnt base base-devel linux linux-firmware linux-headers
+
+# Generate an fstab file
+display_info "Generating fstab..."
+genfstab -U /mnt >> /mnt/etc/fstab
