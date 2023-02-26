@@ -197,7 +197,7 @@ create_partitions(){
         sgdisk -n 3 -t 3:8300 -c 3:ROOT "$partition_block_path"
 
         # Format
-	mkfs.fat -F32 "$EFI_PARTITION"
+        mkfs.fat -F32 "$EFI_PARTITION"
         format_partition "$ROOT_PARTITION" "ext4"
         mkswap "$SWAP_PARTITION" 
 	# Mount
