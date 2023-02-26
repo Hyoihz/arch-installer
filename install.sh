@@ -122,6 +122,12 @@ read_partition_size() {
             elif [[ "$size_bytes" -gt "$2" ]]; then
                 echo "Not enough available space. Please specify a size smaller than $(numfmt --to=iec --format='%.1f' "$2")."
             else
+	        if [[ $3 == "boot_size" ]]; then
+	            boot_size=$size
+	        else
+		    swap_size=$size
+		fi
+
                 available_space=$(($2 - size_bytes))
                 break
             fi
@@ -131,21 +137,13 @@ read_partition_size() {
     done
 }
 
-set_partition_sizes() {
-    available_space=$(lsblk -nb -o SIZE -d "$partition_block_path" | tail -1)
-
+confirm_partition_sizes() {
     if $(is_uefi_boot); then
-        prompt="Enter EFI partition size (e.g. 512M): "
-        read_partition_size "$prompt" "$available_space" size
-        echo "EFI partition size: $size"
+        echo "EFI partition size: $boot_size"
     else
-        prompt="Enter BOOT partition size (e.g. 512M): "
-        read_partition_size "$prompt" "$available_space" size
-        echo "BOOT partition size: $size"
+        echo "BOOT partition size: $boot_size"
     fi
 
-    prompt="Enter swap partition size (e.g. 4G): "
-    read_partition_size "$prompt" "$available_space" swap_size
     echo "SWAP partition size: $swap_size"
     echo "ROOT partition size: $(numfmt --to=iec --format='%.1f' "$available_space")"
 
@@ -155,76 +153,31 @@ set_partition_sizes() {
     done
 
     if [[ "$choice" == "n" ]]; then
+        return 1
+    fi
+
+    return 0
+}
+
+set_partition_sizes() {
+    available_space=$(lsblk -nb -o SIZE -d "$partition_block_path" | tail -1)
+
+    if $(is_uefi_boot); then
+        prompt="Enter EFI partition size (e.g. 512M): "
+    else
+        prompt="Enter BOOT partition size (e.g. 512M): "
+    fi
+
+    read_partition_size "$prompt" "$available_space" "boot_size"
+
+    prompt="Enter swap partition size (e.g. 4G): "
+    read_partition_size "$prompt" "$available_space" "swap_size"
+
+    confirm_partition_sizes 
+    if [[ $? -ne 0 ]]; then
         set_partition_sizes
     fi
 }
-
-
-#set_partition_sizes() {
-#    available_space=$(lsblk -nb -o SIZE -d "$partition_block_path" | tail -1)
-#
-#    if $(is_uefi_boot); then
-#        prompt="Enter EFI partition size (e.g. 512M): "
-#    else
-#        prompt="Enter BOOT partition size (e.g. 512M): "
-#    fi
-#
-#    while true; do
-#    echo "Available space: $(numfmt --to=iec --format='%.1f' "$available_space")"
-#    read -rp "$prompt" size
-#        if [[ "$size" =~ ^[0-9]+[KMGT]$ ]]; then
-#            size_bytes=$(numfmt --from=iec "$size")
-#            if [[ "$size_bytes" -le 0 ]]; then
-#                echo "Invalid size. Please specify a positive size."
-#            elif [[ "$size_bytes" -gt "$available_space" ]]; then
-#                echo "Not enough available space. Please specify a size smaller than $(numfmt --to=iec --format='%.1f' "$available_space")."
-#            else
-#                available_space=$((available_space - size_bytes))
-#                break
-#            fi
-#        else
-#            echo "Invalid size. Please specify a size in the format [0-9]+[KMG] (e.g. 512M)."
-#        fi
-#    done
-#
-#    prompt="Enter swap partition size (e.g. 4G): "
-#    while true; do
-#    echo "Available space: $(numfmt --to=iec --format='%.1f' "$available_space")"
-#    read -rp "$prompt" swap_size
-#        if [[ "$swap_size" =~ ^[0-9]+[KMGT]$ ]]; then
-#            swap_size_bytes=$(numfmt --from=iec "$swap_size")
-#            if [[ "$swap_size_bytes" -le 0 ]]; then
-#                echo "Invalid size. Please specify a positive size."
-#            elif [[ "$swap_size_bytes" -gt "$available_space" ]]; then
-#                echo "Not enough available space. Please specify a size smaller than $(numfmt --to=iec --format='%.1f' "$available_space")."
-#            else
-#                available_space=$((available_space - swap_size_bytes))
-#                break
-#            fi
-#        else
-#            echo "Invalid size. Please specify a size in the format [0-9]+[KMG] (e.g. 4G)."
-#        fi
-#    done
-#
-#    if $(is_uefi_boot); then
-#        echo "EFI partition size: $size"
-#    else
-#        echo "BOOT partition size: $size"
-#    fi
-#
-#    echo "SWAP partition size: $swap_size"
-#    echo "ROOT partition size: $(numfmt --to=iec --format='%.1f' "$available_space")"
-#
-#    read -rp "Are you satisfied with these partition sizes? (Y/n) " choice
-#    while [[ "$choice" != "y" && "$choice" != "n"  && "$choice" != "" ]]; do
-#        read -rp "Invalid input. Please enter 'y' or 'n': " choice
-#    done
-#
-#    if [[ "$choice" == "n" ]]; then
-#        set_partition_sizes
-#    fi
-#}
-#
 
 format_partition(){
     device=$1; fstype=$2
@@ -241,7 +194,7 @@ create_partitions(){
     clear
     if $(is_uefi_boot); then
         sgdisk -Z "$partition_block_path"
-        sgdisk -n 1::+"$size" -t 1:ef00 -c 1:EFI "$partition_block_path"
+        sgdisk -n 1::+"$boot_size" -t 1:ef00 -c 1:EFI "$partition_block_path"
         sgdisk -n 2::+"$swap_size" -t 2:8200 -c 2:SWAP "$partition_block_path"
         sgdisk -n 3 -t 3:8300 -c 3:ROOT "$partition_block_path"
 
@@ -255,7 +208,7 @@ create_partitions(){
     else
         # For non-EFI. Eg. for MBR systems
 cat > /tmp/sfdisk.cmd << EOF
-$BOOT_PARTITION : start= 2048, size=+$size, type=83, bootable
+$BOOT_PARTITION : start= 2048, size=+$boot_size, type=83, bootable
 $SWAP_PARTITION : size=+$swap_size, type=82
 $ROOT_PARTITION : type=83
 EOF
