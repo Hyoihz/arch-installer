@@ -211,16 +211,14 @@ create_partitions() {
         sgdisk -n 2::+"$swap_size" -t 2:8200 -c 2:SWAP "$partition_block_path"
         sgdisk -n 3 -t 3:8300 -c 3:ROOT "$partition_block_path"
 
-        # Format partitions
-        mkfs.fat -F32 "$EFI_PARTITION"
+        # Format and mount partitions
         format_partition "$ROOT_PARTITION" "ext4"
-        mkswap "$SWAP_PARTITION"
-
-        # Mount partitions
+        mount_partition "$ROOT_PARTITION" /mnt
+        mkfs.fat -F32 "$EFI_PARTITION"
         mkdir -p "$EFI_MTPT"
         mount_partition "$EFI_PARTITION" "$EFI_MTPT"
-        mount_partition "$ROOT_PARTITION" /mnt
-        swapon "$SWAP_PARTITION"
+        mkswap "$SWAP_PARTITION" && swapon "$SWAP_PARTITION"
+        
     else
         # Create partitions for BIOS boot
         cat > /tmp/sfdisk.cmd << EOF
@@ -230,16 +228,13 @@ $ROOT_PARTITION : type=83
 EOF
         sfdisk "$partition_block_path" < /tmp/sfdisk.cmd
 
-        # Format partitions
-        format_partition "$BOOT_PARTITION" "ext4"
+        # Format and mount partitions
         format_partition "$ROOT_PARTITION" "ext4"
-        mkswap "$SWAP_PARTITION"
-
-        # Mount partitions
+        mount_partition "$ROOT_PARTITION" /mnt
+        format_partition "$BOOT_PARTITION" "ext4"
         mkdir -p "$BOOT_MTPT"
         mount_partition "$BOOT_PARTITION" "$BOOT_MTPT"
-        mount_partition "$ROOT_PARTITION" /mnt
-        swapon "$SWAP_PARTITION"
+        mkswap "$SWAP_PARTITION" && swapon "$SWAP_PARTITION"
     fi
 
     echo && lsblk "$partition_block_path"
@@ -310,6 +305,8 @@ setup_sudo_access() {
         display_error "Failed to grand root priveledge for '$1'."
     }
     display_success "Root access configured for '$1'."
+    echo && display_success "Finished setting up user account '$username'."
+    
 }
 
 create_user_account() {
@@ -342,7 +339,6 @@ create_user_account() {
     # Only set up sudo access if a username is provided
     [[ -n "$username" ]] && setup_sudo_access "$username"
 
-    echo && display_success "Finished setting up user account '$username'."
 }
 
 set_hostname() {
@@ -393,28 +389,30 @@ get_microcode() {
 
 clear
 
-## Display current boot mode prior to running the script
-#display_info "Checking firmware system..." && sleep 1
-#output_firmware_system
-#pause_script
-#
-## Partitioning
-#get_partition_block
-#pause_script
-#
-#set_partition_vars
-#set_partition_sizes
-#create_partitions
-#pause_script
-#
-## Installation of base system
-#display_info "Installing the base system..."
-#pacstrap -K /mnt base base-devel linux linux-firmware linux-headers
-#
-## Generate an fstab file
-#display_info "Generating fstab..."
-#genfstab -U /mnt >> /mnt/etc/fstab
-#
+# Display current boot mode prior to running the script
+display_info "Checking firmware system..." && sleep 1
+output_firmware_system
+pause_script
+
+# Partitioning
+get_partition_block
+pause_script
+
+set_partition_vars
+set_partition_sizes
+create_partitions
+pause_script
+
+# Installation of base system
+display_info "Installing the base system..."
+pacstrap -K /mnt base base-devel linux linux-firmware linux-headers >/dev/null 2> /tmp/pacman-errors.log || {
+    display_error "Failed to install packages. Check /tmp/pacman-errors.log for details."
+}
+
+# Generate an fstab file
+display_info "Generating fstab..."
+genfstab -U -p /mnt >> /mnt/etc/fstab
+
 # Credentials
 set_root_password
 create_user_account
