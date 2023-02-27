@@ -281,6 +281,27 @@ set_root_password() {
     pause_script
 }
 
+setup_sudo_access() {
+    echo "%wheel ALL=(ALL:ALL) ALL" > /etc/sudoers.d/00-wheel-can-sudo
+    echo "%wheel ALL=(ALL:ALL) NOPASSWD: \
+          /usr/bin/shutdown, \
+	  /usr/bin/reboot, \
+	  /usr/bin/systemctl suspend, \
+	  /usr/bin/mount, \
+	  /usr/bin/umount, \
+	  /usr/bin/pacman -Syu, \
+	  /usr/bin/pacman -Syyu, \
+	  /usr/bin/pacman -Syyu --noconfirm, \
+	  /usr/bin/pacman -Syyuw --noconfirm, \
+	  /usr/bin/pacman -S -u -y --config /etc/pacman.conf --, \
+	  /usr/bin/pacman -S -y -u --config /etc/pacman.conf --" \
+        > /etc/sudoers.d/01-no-pass-cmds
+
+    display_info "Adding the user $1 to the system with root privilege."
+    arch-chroot /mnt bash -c "usermod -aG wheel '$1'" > /dev/null
+    display_info "Sudo access configured for '$1'." && echo
+}
+
 create_user_account() {
     display_info "Create a user credential." && echo
 
@@ -298,19 +319,25 @@ create_user_account() {
 
         set_password "$username"
 
+        display_info "Creating an account for user $username..."
         # Create the user account
         arch-chroot /mnt bash -c "useradd -m -G wheel '$username' >/dev/null 2>&1" || {
             display_error "Failed to create an account for '$username'." && continue
         }
 
+        display_info "Setting the provided password of user $username."
         # Set the password for the user account
         echo "$username:$user_pass" | arch-chroot /mnt chpasswd || {
             display_error "Failed to set a password for '$username'." && continue
         }
 
         echo && display_info "User account '$username' created." && break
-        pause_script
     done
+
+    # Only set up sudo access if a username is provided
+    [[ -n "$username" ]] && setup_sudo_access "$username"
+
+    display_info "Finished setting up user account '$username'." && echo
 }
 
 set_hostname() {
