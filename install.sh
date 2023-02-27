@@ -312,11 +312,6 @@ create_user_account() {
         prompt_input "Enter username (leave blank ito not create one): "
         read -r username
 
-        # Check if the user already exists
-        if id "$username" > /dev/null 2>&1; then
-            clear && display_error "User $username already exists, try again." && continue
-        fi
-
         # If the username is empty, exit the loop
         [[ -z "$username" ]] && break
 
