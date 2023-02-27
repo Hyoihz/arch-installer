@@ -142,7 +142,7 @@ read_partition_size() {
 }
 
 confirm_partition_sizes() {
-    clear display_info "Consuming remaining size for root..." && sleep 1
+    clear && display_info "Consuming remaining size for root..." && sleep 1
     display_info "Assigned partition sizes: " && echo
 
     # Display the sizes of the EFI/BOOT, SWAP, and ROOT partitions
@@ -264,6 +264,7 @@ set_password() {
                 else
                     user_pass=$password
                 fi
+		break
             fi
         fi
     done
@@ -272,8 +273,10 @@ set_password() {
 set_root_password() {
     clear && display_info "Set a root password." && echo
 
+    set_password "root"
+
     # Set the root password
-    echo "root:$root_pass" | chpasswd || {
+    echo "root:$root_pass" | arch-chroot /mnt chpasswd || {
         display_error "Failed to set root password."
     }
 
@@ -282,7 +285,7 @@ set_root_password() {
 }
 
 setup_sudo_access() {
-    echo "%wheel ALL=(ALL:ALL) ALL" > /etc/sudoers.d/00-wheel-can-sudo
+    echo "%wheel ALL=(ALL:ALL) ALL" > /mnt/etc/sudoers.d/00-wheel-can-sudo
     echo "%wheel ALL=(ALL:ALL) NOPASSWD: \
           /usr/bin/shutdown, \
 	  /usr/bin/reboot, \
@@ -295,7 +298,7 @@ setup_sudo_access() {
 	  /usr/bin/pacman -Syyuw --noconfirm, \
 	  /usr/bin/pacman -S -u -y --config /etc/pacman.conf --, \
 	  /usr/bin/pacman -S -y -u --config /etc/pacman.conf --" \
-        > /etc/sudoers.d/01-no-pass-cmds
+        > /mnt/etc/sudoers.d/01-no-pass-cmds
 
     display_info "Adding the user $1 to the system with root privilege."
     arch-chroot /mnt bash -c "usermod -aG wheel '$1'" > /dev/null
@@ -388,7 +391,7 @@ get_microcode() {
 
 clear
 
-# Pre-install boot system info
+# Display current boot mode prior to running the script
 display_info "Checking firmware system..." && sleep 1
 output_firmware_system
 pause_script
@@ -402,10 +405,6 @@ set_partition_sizes
 create_partitions
 pause_script
 
-# Credentials
-set_root_password
-create_user_account
-
 # Installation of base system
 display_info "Installing the base system..."
 pacstrap -K /mnt base base-devel linux linux-firmware linux-headers
@@ -413,4 +412,7 @@ pacstrap -K /mnt base base-devel linux linux-firmware linux-headers
 # Generate an fstab file
 display_info "Generating fstab..."
 genfstab -U /mnt >> /mnt/etc/fstab
-enfstab -U /mnt >> /mnt/etc/fstab
+
+# Credentials
+set_root_password
+create_user_account
