@@ -17,6 +17,10 @@ display_info() {
     echo -e "${BOLD}${BLUE}[ ${MAGENTA}•${BLUE} ] $1${RESET}"
 }
 
+display_success() {
+    echo -e "${BOLD}${GREEN}[ ${MAGENTA}•${GREEN} ] $1${RESET}"
+}
+
 display_error() {
     echo -e "${BOLD}${RED}[ ${MAGENTA}•${RED} ] $1${RESET}"
 }
@@ -281,7 +285,7 @@ set_root_password() {
         display_error "Failed to set root password."
     }
 
-    display_info "Root password set successfully."
+    display_success "Root password set successfully."
     pause_script
 }
 
@@ -302,8 +306,10 @@ setup_sudo_access() {
     > /mnt/etc/sudoers.d/01-no-pass-cmds
 
     echo && display_info "Granting root priveledge to '$1'..."
-    arch-chroot /mnt bash -c "usermod -aG wheel '$1'" > /dev/null
-    display_info "Root access configured for '$1'."
+    arch-chroot /mnt bash -c "usermod -aG wheel '$1' > /dev/null 2>&1" || {
+        display_error "Failed to grand root priveledge for '$1'."
+    }
+    display_success "Root access configured for '$1'."
 }
 
 create_user_account() {
@@ -320,7 +326,7 @@ create_user_account() {
 
         display_info "Creating user account '$username' and granting root priviledge..."
         # Create the user account
-        arch-chroot /mnt bash -c "useradd -m -G wheel '$username' >/dev/null 2>&1" || {
+        arch-chroot /mnt bash -c "useradd -m -G wheel '$username'" > /dev/null 2>&1 || {
             display_error "Failed to create an account for '$username'." && continue
         }
 
@@ -330,13 +336,13 @@ create_user_account() {
             display_error "Failed to set a password for '$username'." && continue
         }
 
-        display_info "User account '$username' created." && break
+        display_success "User account '$username' created." && break
     done
 
     # Only set up sudo access if a username is provided
     [[ -n "$username" ]] && setup_sudo_access "$username"
 
-    echo && display_info "Finished setting up user account '$username'."
+    echo && display_success "Finished setting up user account '$username'."
 }
 
 set_hostname() {
