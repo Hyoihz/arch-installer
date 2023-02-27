@@ -348,6 +348,8 @@ set_hostname() {
 
         # If hostname is empty, print an error message and continue the loop until a valid input is provided
         [[ -z "$hostname" ]] && display_error "You need to enter a hostname in order to continue." && continue
+
+	break
     done
 }
 
@@ -372,13 +374,23 @@ set_locale() {
     echo "LANG=en_US.UTF-8" > /etc/locale.conf
 }
 
-set_grub() {
+config_grub() {
     if is_uefi_boot; then
+	pacman -S --noconfirm efibootmgr
         grub-install --target=x86_64-efi --efi-directory=/boot/efi --bootloader-id=GRUB
     else
         grub-install --target=i386-pc $partition_block_path
     fi
     grub-mkconfig -o /boot/grub/grub.cfg
+}
+
+install_packages() {
+	pacman -S --noconfirm xorg-server xorg-xinit xorg-xprop xorg-xev \
+	    networkmanager zsh neovim unclutter xclip fd ripgrep htop feh exa \ 
+	    gparted git lazygit mpv pulseaudio pulsemixer firefox flameshot \
+	    gnome-themes-extra gtk-engine-murrine arc-gtk-theme papirus-icon-theme \
+	    noto-fonts noto-fonts-emoji noto-fonts-cjk ttf-jetbrains-mono-nerd \
+
 }
 
 get_microcode() {
@@ -408,11 +420,40 @@ display_info "Installing the base system..."
 pacstrap -K /mnt base base-devel linux linux-firmware linux-headers >/dev/null 2> /tmp/pacman-errors.log || {
     display_error "Failed to install packages. Check /tmp/pacman-errors.log for details."
 }
+display_success "Successfully installed the base system."
+pause_script
 
 # Generate an fstab file
 display_info "Generating fstab..."
-genfstab -U -p /mnt >> /mnt/etc/fstab
+genfstab -U -p /mnt >> /mnt/etc/fstab || {
+    display_error "Failed to generate fstab. Check if the root partition is mounted properly."
+}
+display_success "Successfully generated an fstab file."
+pause_script
 
 # Credentials
 set_root_password
 create_user_account
+
+# Hostname
+set_hostname
+
+# Export functions so it can be used withtin arch-chroot
+export -f set_host
+export -f set_timezone
+export -f set_locale
+export -f config_grub
+export -f install_package
+
+# Execute functions in arch-chroot
+if arch-chroot /mnt bash -c '
+    set_host &&
+    set_timezone &&
+    set_locale &&
+    config_grub &&
+    install_packages'; then
+    echo "Chroot environment setup completed successfully."
+else
+    echo "Error: chroot environment setup failed."
+    exit 1
+fi
