@@ -218,15 +218,15 @@ create_partitions() {
         mkdir -p "$EFI_MTPT"
         mount_partition "$EFI_PARTITION" "$EFI_MTPT"
         mkswap "$SWAP_PARTITION" && swapon "$SWAP_PARTITION"
-        
+
     else
         # Create partitions for BIOS boot
-        cat > /tmp/sfdisk.cmd << EOF
+        cat >/tmp/sfdisk.cmd <<EOF
 $BOOT_PARTITION : start= 2048, size=+$boot_size, type=83, bootable
 $SWAP_PARTITION : size=+$swap_size, type=82
 $ROOT_PARTITION : type=83
 EOF
-        sfdisk "$partition_block_path" < /tmp/sfdisk.cmd
+        sfdisk "$partition_block_path" </tmp/sfdisk.cmd
 
         # Format and mount partitions
         format_partition "$ROOT_PARTITION" "ext4"
@@ -263,7 +263,7 @@ set_password() {
                 else
                     user_pass=$password
                 fi
-		break
+                break
             fi
         fi
     done
@@ -285,7 +285,7 @@ set_root_password() {
 }
 
 setup_sudo_access() {
-    echo "%wheel ALL=(ALL:ALL) ALL" > /mnt/etc/sudoers.d/00-wheel-can-sudo
+    echo "%wheel ALL=(ALL:ALL) ALL" >/mnt/etc/sudoers.d/00-wheel-can-sudo
     echo "%wheel ALL=(ALL:ALL) NOPASSWD: \
     /usr/bin/shutdown,\
     /usr/bin/reboot,\
@@ -298,7 +298,7 @@ setup_sudo_access() {
     /usr/bin/pacman -Syyuw --noconfirm,\
     /usr/bin/pacman -S -u -y --config /etc/pacman.conf --,\
     /usr/bin/pacman -S -y -u --config /etc/pacman.conf --" \
-    > /mnt/etc/sudoers.d/01-no-pass-cmds
+        >/mnt/etc/sudoers.d/01-no-pass-cmds
 
     echo && display_info "Granting root priveledge to '$1'..."
     arch-chroot /mnt bash -c "usermod -aG wheel '$1' > /dev/null 2>&1" || {
@@ -306,7 +306,7 @@ setup_sudo_access() {
     }
     display_success "Root access configured for '$1'."
     echo && display_success "Finished setting up user account '$username'."
-    
+
 }
 
 create_user_account() {
@@ -323,7 +323,7 @@ create_user_account() {
 
         display_info "Creating user account '$username' and granting root priviledge..."
         # Create the user account
-        arch-chroot /mnt bash -c "useradd -m -G wheel '$username'" > /dev/null 2>&1 || {
+        arch-chroot /mnt bash -c "useradd -m -G wheel '$username'" >/dev/null 2>&1 || {
             display_error "Failed to create an account for '$username'." && continue
         }
 
@@ -349,18 +349,18 @@ set_hostname() {
         # If hostname is empty, print an error message and continue the loop until a valid input is provided
         [[ -z "$hostname" ]] && display_error "You need to enter a hostname in order to continue." && continue
 
-	break
+        break
     done
 }
 
 set_host() {
-    echo "$hostname" > /etc/hostname
+    echo "$hostname" >/etc/hostname
 
     {
         echo "127.0.0.1       localhost"
         echo "::1             localhost"
         echo "127.0.1.1       $hostname.localdomain       $hostname"
-    } >> /etc/hosts
+    } >>/etc/hosts
 }
 
 set_timezone() {
@@ -369,14 +369,14 @@ set_timezone() {
 }
 
 set_locale() {
-    echo "en_US.UTF-8 UTF-8" >> /etc/locale.gen
+    echo "en_US.UTF-8 UTF-8" >>/etc/locale.gen
     locale-gen
-    echo "LANG=en_US.UTF-8" > /etc/locale.conf
+    echo "LANG=en_US.UTF-8" >/etc/locale.conf
 }
 
 config_grub() {
     if is_uefi_boot; then
-	pacman -S --noconfirm efibootmgr
+        pacman -S --noconfirm efibootmgr
         grub-install --target=x86_64-efi --efi-directory=/boot/efi --bootloader-id=GRUB
     else
         grub-install --target=i386-pc $partition_block_path
@@ -385,11 +385,11 @@ config_grub() {
 }
 
 install_packages() {
-	pacman -S --noconfirm xorg-server xorg-xinit xorg-xprop xorg-xev \
-	    networkmanager zsh neovim unclutter xclip fd ripgrep htop feh exa \ 
-	    gparted git lazygit mpv pulseaudio pulsemixer firefox flameshot \
-	    gnome-themes-extra gtk-engine-murrine arc-gtk-theme papirus-icon-theme \
-	    noto-fonts noto-fonts-emoji noto-fonts-cjk ttf-jetbrains-mono-nerd \
+    pacman -S --noconfirm xorg-server xorg-xinit xorg-xprop xorg-xev \
+        networkmanager zsh neovim unclutter xclip fd ripgrep htop feh exa \
+        gparted git lazygit mpv pulseaudio pulsemixer firefox flameshot \
+        gnome-themes-extra gtk-engine-murrine arc-gtk-theme papirus-icon-theme \
+        noto-fonts noto-fonts-emoji noto-fonts-cjk ttf-jetbrains-mono-nerd
 
 }
 
@@ -417,7 +417,7 @@ pause_script
 
 # Installation of base system
 display_info "Installing the base system..."
-pacstrap -K /mnt base base-devel linux linux-firmware linux-headers >/dev/null 2> /tmp/pacman-errors.log || {
+pacstrap -K /mnt base base-devel linux linux-firmware linux-headers >/dev/null 2>/tmp/pacman-errors.log || {
     display_error "Failed to install packages. Check /tmp/pacman-errors.log for details."
 }
 display_success "Successfully installed the base system."
@@ -425,7 +425,7 @@ pause_script
 
 # Generate an fstab file
 display_info "Generating fstab..."
-genfstab -U -p /mnt >> /mnt/etc/fstab || {
+genfstab -U -p /mnt >>/mnt/etc/fstab || {
     display_error "Failed to generate fstab. Check if the root partition is mounted properly."
 }
 display_success "Successfully generated an fstab file."
@@ -451,7 +451,7 @@ if arch-chroot /mnt bash -c '
     set_timezone &&
     set_locale &&
     config_grub &&
-    install_packages'; then
+install_packages'; then
     echo "Chroot environment setup completed successfully."
 else
     echo "Error: chroot environment setup failed."
