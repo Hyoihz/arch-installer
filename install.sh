@@ -287,18 +287,18 @@ set_root_password() {
 setup_sudo_access() {
     echo "%wheel ALL=(ALL:ALL) ALL" > /mnt/etc/sudoers.d/00-wheel-can-sudo
     echo "%wheel ALL=(ALL:ALL) NOPASSWD: \
-          /usr/bin/shutdown, \
-	  /usr/bin/reboot, \
-	  /usr/bin/systemctl suspend, \
-	  /usr/bin/mount, \
-	  /usr/bin/umount, \
-	  /usr/bin/pacman -Syu, \
-	  /usr/bin/pacman -Syyu, \
-	  /usr/bin/pacman -Syyu --noconfirm, \
-	  /usr/bin/pacman -Syyuw --noconfirm, \
-	  /usr/bin/pacman -S -u -y --config /etc/pacman.conf --, \
-	  /usr/bin/pacman -S -y -u --config /etc/pacman.conf --" \
-        > /mnt/etc/sudoers.d/01-no-pass-cmds
+    /usr/bin/shutdown,\
+    /usr/bin/reboot,\
+    /usr/bin/systemctl suspend,\
+    /usr/bin/mount,\
+    /usr/bin/umount,\
+    /usr/bin/pacman -Syu,\
+    /usr/bin/pacman -Syyu,\
+    /usr/bin/pacman -Syyu --noconfirm,\
+    /usr/bin/pacman -Syyuw --noconfirm,\
+    /usr/bin/pacman -S -u -y --config /etc/pacman.conf --,\
+    /usr/bin/pacman -S -y -u --config /etc/pacman.conf --" \
+    > /mnt/etc/sudoers.d/01-no-pass-cmds
 
     display_info "Adding the user $1 to the system with root privilege."
     arch-chroot /mnt bash -c "usermod -aG wheel '$1'" > /dev/null
@@ -391,28 +391,28 @@ get_microcode() {
 
 clear
 
-# Display current boot mode prior to running the script
-display_info "Checking firmware system..." && sleep 1
-output_firmware_system
-pause_script
-
-# Partitioning
-get_partition_block
-pause_script
-
-set_partition_vars
-set_partition_sizes
-create_partitions
-pause_script
-
-# Installation of base system
-display_info "Installing the base system..."
-pacstrap -K /mnt base base-devel linux linux-firmware linux-headers
-
-# Generate an fstab file
-display_info "Generating fstab..."
-genfstab -U /mnt >> /mnt/etc/fstab
-
+## Display current boot mode prior to running the script
+#display_info "Checking firmware system..." && sleep 1
+#output_firmware_system
+#pause_script
+#
+## Partitioning
+#get_partition_block
+#pause_script
+#
+#set_partition_vars
+#set_partition_sizes
+#create_partitions
+#pause_script
+#
+## Installation of base system
+#display_info "Installing the base system..."
+#pacstrap -K /mnt base base-devel linux linux-firmware linux-headers
+#
+## Generate an fstab file
+#display_info "Generating fstab..."
+#genfstab -U /mnt >> /mnt/etc/fstab
+#
 # Credentials
 set_root_password
 create_user_account
