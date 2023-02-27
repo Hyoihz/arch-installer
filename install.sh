@@ -275,6 +275,7 @@ set_root_password() {
 
     set_password "root"
 
+    display_info "Setting the provided password..."
     # Set the root password
     echo "root:$root_pass" | arch-chroot /mnt chpasswd || {
         display_error "Failed to set root password."
@@ -300,16 +301,16 @@ setup_sudo_access() {
     /usr/bin/pacman -S -y -u --config /etc/pacman.conf --" \
     > /mnt/etc/sudoers.d/01-no-pass-cmds
 
-    display_info "Adding the user $1 to the system with root privilege."
+    echo && display_info "Granting root priveledge to '$1'..."
     arch-chroot /mnt bash -c "usermod -aG wheel '$1'" > /dev/null
-    display_info "Sudo access configured for '$1'." && echo
+    display_info "Root access configured for '$1'."
 }
 
 create_user_account() {
     display_info "Create a user credential." && echo
 
     while true; do
-        prompt_input "Enter username (leave blank ito not create one): "
+        prompt_input "Enter username (leave blank to not create one): "
         read -r username
 
         # If the username is empty, exit the loop
@@ -317,25 +318,25 @@ create_user_account() {
 
         set_password "$username"
 
-        display_info "Creating an account for user $username..."
+        display_info "Creating user account '$username' and granting root priviledge..."
         # Create the user account
         arch-chroot /mnt bash -c "useradd -m -G wheel '$username' >/dev/null 2>&1" || {
             display_error "Failed to create an account for '$username'." && continue
         }
 
-        display_info "Setting the provided password of user $username."
+        display_info "Setting the provided password of user account '$username'..."
         # Set the password for the user account
         echo "$username:$user_pass" | arch-chroot /mnt chpasswd || {
             display_error "Failed to set a password for '$username'." && continue
         }
 
-        echo && display_info "User account '$username' created." && break
+        display_info "User account '$username' created." && break
     done
 
     # Only set up sudo access if a username is provided
     [[ -n "$username" ]] && setup_sudo_access "$username"
 
-    display_info "Finished setting up user account '$username'." && echo
+    echo && display_info "Finished setting up user account '$username'."
 }
 
 set_hostname() {
